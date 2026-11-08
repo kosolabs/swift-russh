@@ -8,13 +8,13 @@ on:
   push:
     branches: [ 'release-please--**' ]
 
-concurrency:
-  group: pin-binary-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   pin:
     name: Pin the release binary
+    if: "!startsWith(github.event.head_commit.message, 'chore: pin CRusshFFI binary')"
+    concurrency:
+      group: pin-binary-${{ github.ref }}
+      cancel-in-progress: true
     runs-on: macos-latest
     environment:
       name: swift-russh-release
@@ -32,15 +32,7 @@ jobs:
         ref: ${{ github.ref_name }}
         token: ${{ steps.app.outputs.token }}
 
-    - id: check
-      name: Skip the commit this workflow pushed
-      run: |
-        if [[ "$(git log -1 --format=%s)" == "chore: pin CRusshFFI binary"* ]]; then
-          echo "skip=true" >> "$GITHUB_OUTPUT"
-        fi
-
     - id: version
-      if: steps.check.outputs.skip != 'true'
       name: Read the release version
       env:
         GH_TOKEN: ${{ steps.app.outputs.token }}
@@ -53,31 +45,26 @@ jobs:
         [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]] || { echo "No version in '$title'"; exit 1; }
         echo "version=$version" >> "$GITHUB_OUTPUT"
 
-    - if: steps.check.outputs.skip != 'true'
-      name: Install Rust targets
+    - name: Install Rust targets
       run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
-    - if: steps.check.outputs.skip != 'true'
-      name: Build the Rust core
+    - name: Build the Rust core
       run: ./build.sh
 
     - id: package
-      if: steps.check.outputs.skip != 'true'
       name: Package the XCFramework
       run: |
         ditto -c -k --norsrc --noextattr --noqtn --keepParent Sources/CRusshFFI.xcframework CRusshFFI.xcframework.zip
         echo "checksum=$(swift package compute-checksum CRusshFFI.xcframework.zip)" >> "$GITHUB_OUTPUT"
 
-    - if: steps.check.outputs.skip != 'true'
-      uses: actions/upload-artifact@v5
+    - uses: actions/upload-artifact@v5
       with:
         name: CRusshFFI-${{ steps.package.outputs.checksum }}
         path: CRusshFFI.xcframework.zip
         retention-days: 90
         if-no-files-found: error
 
-    - if: steps.check.outputs.skip != 'true'
-      name: Pin Package.swift to the release binary
+    - name: Pin Package.swift to the release binary
       env:
         VERSION: ${{ steps.version.outputs.version }}
         CHECKSUM: ${{ steps.package.outputs.checksum }}

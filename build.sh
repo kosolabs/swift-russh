@@ -23,10 +23,9 @@ done
 lipo -create \
   $(for target in "${TARGETS[@]}"; do echo "$RUST/target/$target/release/$LIB"; done) \
   -output "$BUILD/universal/$LIB"
-strip -S "$BUILD/universal/$LIB" 2>/dev/null
-
-cargo run --release --locked --bin uniffi-bindgen -- generate \
-  --library "$RUST/target/aarch64-apple-darwin/release/$LIB" \
+HOST=$(rustc -vV | sed -n 's/^host: //p')
+cargo run --release --locked --target "$HOST" --bin uniffi-bindgen -- generate \
+  --library "$RUST/target/$HOST/release/$LIB" \
   --language swift \
   --out-dir "$BUILD/generated"
 
