@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/kosolabs/swift-russh/compare/v0.1.0...v0.1.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* speed up CI and stop cancelling pin runs ([#5](https://github.com/kosolabs/swift-russh/issues/5)) ([d1d896d](https://github.com/kosolabs/swift-russh/commit/d1d896d94c8cf9b245f0f54e5c0806739e2fb0b4))
+
 ## 0.1.0 (2026-11-08)
 
 
