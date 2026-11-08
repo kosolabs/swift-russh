@@ -5,14 +5,16 @@ name: Pin Binary
 # an artifact named after that checksum for the Release workflow to publish.
 
 on:
-  pull_request:
-    branches: [ main ]
-    types: [ opened, synchronize, reopened ]
+  push:
+    branches: [ 'release-please--**' ]
+
+concurrency:
+  group: pin-binary-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   pin:
     name: Pin the release binary
-    if: startsWith(github.head_ref, 'release-please--')
     runs-on: macos-latest
     environment:
       name: swift-russh-release
@@ -27,7 +29,7 @@ jobs:
     - name: Checkout the release branch
       uses: actions/checkout@v7
       with:
-        ref: ${{ github.head_ref }}
+        ref: ${{ github.ref_name }}
         token: ${{ steps.app.outputs.token }}
 
     - id: check
@@ -41,10 +43,14 @@ jobs:
       if: steps.check.outputs.skip != 'true'
       name: Read the release version
       env:
-        TITLE: ${{ github.event.pull_request.title }}
+        GH_TOKEN: ${{ steps.app.outputs.token }}
       run: |
-        version="${TITLE##* }"
-        [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]] || { echo "No version in '$TITLE'"; exit 1; }
+        for _ in 1 2 3 4 5 6; do
+          title=$(gh pr view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --json title --jq .title) && break
+          sleep 10
+        done
+        version="${title##* }"
+        [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]] || { echo "No version in '$title'"; exit 1; }
         echo "version=$version" >> "$GITHUB_OUTPUT"
 
     - if: steps.check.outputs.skip != 'true'
