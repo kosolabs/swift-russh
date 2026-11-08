@@ -179,7 +179,8 @@ struct SFTPClientTests {
         #expect(after.gid == before.gid)
         #expect((after.permissions! & 0o777) == (before.permissions! & 0o777))
         #expect(after.accessTime == before.accessTime)
-        #expect(after.modifyTime == before.modifyTime)
+        // Truncating to a new size updates the modification time.
+        #expect(try #require(after.modifyTime) >= #require(before.modifyTime))
       }
     }
 

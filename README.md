@@ -30,15 +30,18 @@ deleting the local build, resolve with `--manifest-cache none` or clear
 
 Releases are cut by merging release-please's release PR, as in swift-libssh.
 
-1. When the release PR opens or updates, **Pin Binary** builds the XCFramework,
-   keeps the zip as an artifact named after its checksum, and commits the
-   release URL and checksum to `Package.swift` on the PR branch.
+1. When release-please pushes the release branch, **Pin Binary** builds the
+   XCFramework, keeps the zip as an artifact named after its checksum, and
+   commits the release URL and checksum to `Package.swift` on that branch.
 2. Merging tags that commit, so the tag already points at the right binary.
    **Release** then attaches the matching artifact to the GitHub release after
    verifying its SHA-256.
 
 Both workflows need the `swift-russh-release` environment with the
-`RELEASER_PRIVATE_KEY` secret, and the releaser app installed on the repo.
+`RELEASER_PRIVATE_KEY` secret, and the releaser app installed on the repo. The
+environment must allow the `main` and `release-please--*` branches. Pin Binary
+runs on pushes rather than pull requests because GitHub checks pull request runs
+against `refs/pull/<n>/merge`, which no branch policy can safely allow.
 Merge the release PR within 90 days of its last update, or the artifact
 expires; pushing to the PR branch rebuilds it.
 
