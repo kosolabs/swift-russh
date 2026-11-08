@@ -1,0 +1,19 @@
+Port 2248
+
+ListenAddress 0.0.0.0
+ListenAddress ::
+
+StrictModes no
+
+UsePAM yes
+PasswordAuthentication yes
+PubkeyAuthentication yes
+KbdInteractiveAuthentication no
+GSSAPIAuthentication no
+
+Subsystem sftp internal-sftp -u 022
+
+MaxStartups 200
+PerSourcePenalties no
+
+LogLevel VERBOSE

@@ -1,0 +1,5 @@
+[bindings.swift]
+module_name = "RusshFFI"
+ffi_module_name = "CRusshFFI"
+ffi_module_filename = "CRusshFFI"
+generate_module_map = true

@@ -1,0 +1,24 @@
+[package]
+name = "russh-ffi"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "russh_ffi"
+crate-type = ["staticlib", "lib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+
+[dependencies]
+russh = { version = "0.65.1", default-features = false, features = ["ring", "rsa", "flate2"] }
+russh-sftp = "3.0.1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "sync", "macros"] }
+uniffi = { version = "0.32.2", features = ["cli"] }
+
+[profile.release]
+lto = true
+codegen-units = 1

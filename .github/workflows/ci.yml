@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  functional-tests:
+    name: Functional Tests
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7
+
+    - name: Install Rust targets
+      run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+    - name: Build the Rust core
+      run: ./build.sh
+
+    - name: Check the committed bindings match the Rust core
+      run: git diff --exit-code -- Sources/RusshFFI
+
+    - name: Create the test server account
+      run: |
+        set -euxo pipefail
+        sudo sysadminctl -addUser myuser -password mypass
+        sudo dscl . -create /Users/myuser UserShell /bin/zsh
+        sudo createhomedir -c -u myuser
+        sudo dseditgroup -o edit -a myuser -t user com.apple.access_ssh
+
+        chmod o+rx "$HOME" "$HOME/work" "$RUNNER_WORKSPACE" "$GITHUB_WORKSPACE"
+        chmod 777 scripts/test_server
+
+    - name: Start SSH test server
+      run: sudo -u myuser ./scripts/start_test_server.sh
+
+    - name: Export the test server host key
+      run: sudo cat /tmp/ssh-test-server-myuser/host_key_ed25519.pub > "$RUNNER_TEMP/host_key_ed25519.pub"
+
+    - name: Run tests
+      env:
+        SWIFT_LIBSSH_TEST_USER: myuser
+        SWIFT_LIBSSH_TEST_PASSWORD: mypass
+        SWIFT_LIBSSH_TEST_HOST_KEY_PATH: ${{ runner.temp }}/host_key_ed25519.pub
+      run: swift test
+
+    - name: Dump sshd log
+      if: failure()
+      run: sudo cat /tmp/ssh-test-server-myuser/sshd.log || true
+
+    - name: Stop SSH test server
+      if: always()
+      run: sudo -u myuser ./scripts/stop_test_server.sh

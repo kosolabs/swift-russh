@@ -1,0 +1,91 @@
+name: Pin Binary
+
+# Rust builds are not byte-for-byte reproducible, so the release PR builds the
+# XCFramework once, commits its checksum to Package.swift, and keeps the zip as
+# an artifact named after that checksum for the Release workflow to publish.
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [ opened, synchronize, reopened ]
+
+jobs:
+  pin:
+    name: Pin the release binary
+    if: startsWith(github.head_ref, 'release-please--')
+    runs-on: macos-latest
+    environment:
+      name: swift-russh-release
+
+    steps:
+    - id: app
+      uses: actions/create-github-app-token@v3.3.0
+      with:
+        client-id: Iv23liXdlxbyAb7jyk9P
+        private-key: ${{ secrets.RELEASER_PRIVATE_KEY }}
+
+    - name: Checkout the release branch
+      uses: actions/checkout@v7
+      with:
+        ref: ${{ github.head_ref }}
+        token: ${{ steps.app.outputs.token }}
+
+    - id: check
+      name: Skip the commit this workflow pushed
+      run: |
+        if [[ "$(git log -1 --format=%s)" == "chore: pin CRusshFFI binary"* ]]; then
+          echo "skip=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    - id: version
+      if: steps.check.outputs.skip != 'true'
+      name: Read the release version
+      env:
+        TITLE: ${{ github.event.pull_request.title }}
+      run: |
+        version="${TITLE##* }"
+        [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]] || { echo "No version in '$TITLE'"; exit 1; }
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    - if: steps.check.outputs.skip != 'true'
+      name: Install Rust targets
+      run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+    - if: steps.check.outputs.skip != 'true'
+      name: Build the Rust core
+      run: ./build.sh
+
+    - id: package
+      if: steps.check.outputs.skip != 'true'
+      name: Package the XCFramework
+      run: |
+        ditto -c -k --norsrc --noextattr --noqtn --keepParent Sources/CRusshFFI.xcframework CRusshFFI.xcframework.zip
+        echo "checksum=$(swift package compute-checksum CRusshFFI.xcframework.zip)" >> "$GITHUB_OUTPUT"
+
+    - if: steps.check.outputs.skip != 'true'
+      uses: actions/upload-artifact@v5
+      with:
+        name: CRusshFFI-${{ steps.package.outputs.checksum }}
+        path: CRusshFFI.xcframework.zip
+        retention-days: 90
+        if-no-files-found: error
+
+    - if: steps.check.outputs.skip != 'true'
+      name: Pin Package.swift to the release binary
+      env:
+        VERSION: ${{ steps.version.outputs.version }}
+        CHECKSUM: ${{ steps.package.outputs.checksum }}
+        APP_SLUG: ${{ steps.app.outputs.app-slug }}
+        GH_TOKEN: ${{ steps.app.outputs.token }}
+      run: |
+        set -euo pipefail
+        sed -i '' -E \
+          -e "s|(releases/download/)[^/]+(/CRusshFFI\.xcframework\.zip)|\1v$VERSION\2|" \
+          -e "s|(checksum: \")[0-9a-f]{64}(\")|\1$CHECKSUM\2|" \
+          Package.swift
+        user_id=$(gh api "/users/${APP_SLUG}%5Bbot%5D" --jq .id)
+        git config user.name "${APP_SLUG}[bot]"
+        git config user.email "${user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+        git add Package.swift Sources/RusshFFI
+        git commit -m "chore: pin CRusshFFI binary for v$VERSION"
+        git push
