@@ -45,8 +45,9 @@ jobs:
         [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]] || { echo "No version in '$title'"; exit 1; }
         echo "version=$version" >> "$GITHUB_OUTPUT"
 
-    - name: Install Rust targets
-      run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+    - name: Install the Rust toolchain
+      working-directory: rust
+      run: rustup toolchain install --no-self-update
 
     - name: Build the Rust core
       run: ./build.sh
