@@ -3,6 +3,8 @@ name: CI
 on:
   pull_request:
     branches: [ main ]
+  push:
+    branches: [ main ]
 
 jobs:
   functional-tests:
@@ -13,11 +15,37 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v7
 
-    - name: Install Rust targets
-      run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+    - name: Install the Rust toolchain
+      working-directory: rust
+      run: rustup toolchain install --no-self-update
+
+    - id: rustc
+      name: Read the Rust version
+      working-directory: rust
+      run: echo "version=$(rustc -V | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+
+    - id: core
+      name: Restore the built Rust core
+      uses: actions/cache@v6.1.0
+      with:
+        path: |
+          Sources/CRusshFFI.xcframework
+          .build/rust/generated
+        key: rust-core-${{ runner.os }}-${{ runner.arch }}-rustc-${{ steps.rustc.outputs.version }}-${{ hashFiles('rust/**', 'build.sh') }}
+
+    - name: Restore the Rust dependency build
+      if: steps.core.outputs.cache-hit != 'true'
+      uses: Swatinem/rust-cache@v2.9.3
+      with:
+        workspaces: rust
 
     - name: Build the Rust core
+      if: steps.core.outputs.cache-hit != 'true'
       run: ./build.sh
+
+    - name: Restore the generated bindings
+      if: steps.core.outputs.cache-hit == 'true'
+      run: cp .build/rust/generated/RusshFFI.swift Sources/RusshFFI/RusshFFI.swift
 
     - name: Check the committed bindings match the Rust core
       run: git diff --exit-code -- Sources/RusshFFI

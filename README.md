@@ -16,6 +16,9 @@ against `SwiftLibSSH` should compile against `SwiftRussh` by changing the import
 | `Sources/SwiftSSH` | CLI for uploads, downloads and stress runs |
 | `Tests/SwiftRusshTests` | SwiftLibSSH's test suite, run against this package |
 
+The Rust version and targets are pinned in `rust/rust-toolchain.toml`; rustup
+installs them on first use.
+
 `build.sh` rebuilds the XCFramework and regenerates the bindings. Run it after
 changing anything under `rust/`, and commit the regenerated bindings; CI fails
 if they don't match the Rust code.
