@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.0](https://github.com/kosolabs/swift-russh/compare/v0.4.0...v0.5.0) (2026-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* see the list above.
+
+### Features
+
+* read and write SFTP files at explicit offsets ([#19](https://github.com/kosolabs/swift-russh/issues/19)) ([4037087](https://github.com/kosolabs/swift-russh/commit/4037087733a542d74c7ccbd6800b5d93ada36763))
+
 ## [0.4.0](https://github.com/kosolabs/swift-russh/compare/v0.3.0...v0.4.0) (2026-11-09)
 
 
