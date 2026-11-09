@@ -2,23 +2,29 @@ import Foundation
 import RusshFFI
 
 public struct SFTPDirectory: Sendable, AsyncSequence {
+  public struct Entry: Hashable, Sendable {
+    public let name: String
+    public let attributes: SFTPAttributes
+
+    public init(name: String, attributes: SFTPAttributes) {
+      self.name = name
+      self.attributes = attributes
+    }
+  }
+
   private let cursor: Cursor
 
   init(_ directory: Directory) {
     cursor = Cursor(directory)
   }
 
-  func read() async throws(SSHError) -> SFTPAttributes? {
-    while true {
-      guard let attrs = try await cursor.next() else {
-        return nil
+  func read() async throws(SSHError) -> Entry? {
+    while let entry = try await cursor.next() {
+      if !["", ".", ".."].contains(entry.name) {
+        return entry
       }
-
-      if attrs.name == "" || attrs.name == "." || attrs.name == ".." {
-        continue
-      }
-      return attrs
     }
+    return nil
   }
 
   public func makeAsyncIterator() -> Iterator {
@@ -32,7 +38,7 @@ public struct SFTPDirectory: Sendable, AsyncSequence {
       self.directory = directory
     }
 
-    public func next() async throws -> SFTPAttributes? {
+    public func next() async throws -> Entry? {
       try Task.checkCancellation()
       return try await directory.read()
     }
@@ -40,17 +46,19 @@ public struct SFTPDirectory: Sendable, AsyncSequence {
 
   private actor Cursor {
     private let directory: Directory
-    private var pending: [SFTPAttributes] = []
+    private var pending: [Entry] = []
 
     init(_ directory: Directory) {
       self.directory = directory
     }
 
-    func next() async throws(SSHError) -> SFTPAttributes? {
+    func next() async throws(SSHError) -> Entry? {
       try bridge { try directory.checkOpen() }
       if pending.isEmpty {
         let batch = try await bridge { try await directory.read() }
-        pending = batch.reversed().map(SFTPAttributes.init)
+        pending = batch.reversed().map { attributes in
+          Entry(name: attributes.name ?? "", attributes: SFTPAttributes(attributes))
+        }
       }
       return pending.popLast()
     }

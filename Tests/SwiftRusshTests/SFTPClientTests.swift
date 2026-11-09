@@ -21,9 +21,25 @@ struct SFTPClientTests {
           try await sftp.attributes(at: path)
         }
 
-        #expect(attrs.name == nil)
         #expect(attrs.type == .regular)
         #expect(attrs.size == 1024)
+      }
+    }
+
+    @Test func permissionsExcludeFileTypeBits() async throws {
+      try await withAuthenticatedClient { ssh in
+        let file = "/tmp/stat-permissions.txt"
+        let directory = "/tmp/stat-permissions-dir"
+        try await ssh.execute(
+          "rm -rf \(file) \(directory) && touch \(file) && chmod 640 \(file) && mkdir -m 750 \(directory)"
+        )
+
+        let (fileAttrs, directoryAttrs) = try await ssh.withSftp { sftp in
+          (try await sftp.attributes(at: file), try await sftp.attributes(at: directory))
+        }
+
+        #expect(fileAttrs.permissions == 0o640)
+        #expect(directoryAttrs.permissions == 0o750)
       }
     }
 
@@ -507,9 +523,9 @@ struct SFTPClientTests {
         let base = "/tmp/test-create-recursive-mode"
         try await ssh.execute("rm -rf \(base)")
 
-        let permissions = try await ssh.withSftp { sftp -> [UInt32] in
+        let permissions = try await ssh.withSftp { sftp -> [mode_t] in
           try await sftp.createDirectoryRecursively(at: "\(base)/a/b")
-          var result: [UInt32] = []
+          var result: [mode_t] = []
           for path in [base, "\(base)/a", "\(base)/a/b"] {
             result.append(try await sftp.attributes(at: path).permissions! & 0o777)
           }
@@ -800,16 +816,35 @@ struct SFTPClientTests {
         try await ssh.withSftp(perform: { sftp in
           let names = try await sftp.withDirectory(at: dirPath) { directory in
             var names = Set<String>()
-            for try await attrs in directory {
-              if let name = attrs.name {
-                names.insert(name)
-              }
+            for try await entry in directory {
+              names.insert(entry.name)
             }
             return names
           }
 
           #expect(names == Set(["file1.txt", "file2.txt", "file3.txt"]))
         })
+      }
+    }
+
+    @Test func directoryEntriesCarryAttributes() async throws {
+      try await withAuthenticatedClient { ssh in
+        let dirPath = "/tmp/test-iterate-attributes"
+        try await ssh.execute(
+          "rm -rf \(dirPath) && mkdir \(dirPath) && dd if=/dev/zero of=\(dirPath)/data bs=1024 count=3"
+        )
+
+        let entries = try await ssh.withSftp { sftp in
+          try await sftp.withDirectory(at: dirPath) { directory in
+            var entries: [SFTPDirectory.Entry] = []
+            for try await entry in directory { entries.append(entry) }
+            return entries
+          }
+        }
+
+        #expect(entries.map(\.name) == ["data"])
+        #expect(entries.first?.attributes.type == .regular)
+        #expect(entries.first?.attributes.size == 3072)
       }
     }
 
@@ -830,10 +865,8 @@ struct SFTPClientTests {
         try await ssh.withSftp { sftp in
           let types = try await sftp.withDirectory(at: dirPath) { directory in
             var types: [String: SFTPAttributes.FileType] = [:]
-            for try await attrs in directory {
-              if let name = attrs.name {
-                types[name] = attrs.type
-              }
+            for try await entry in directory {
+              types[entry.name] = entry.attributes.type
             }
             return types
           }
