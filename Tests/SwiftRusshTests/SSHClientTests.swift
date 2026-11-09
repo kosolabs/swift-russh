@@ -178,7 +178,7 @@ struct SSHClientTests {
       await #expect {
         try await ssh.execute("whoami")
       } throws: { error in
-        (error as? SSHError)?.isConnectionFailed == true
+        (error as? SSHError)?.connectionFailure == .lost
       }
 
       #expect(!(await ssh.isConnected))

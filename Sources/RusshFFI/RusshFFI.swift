@@ -2488,6 +2488,93 @@ public func FfiConverterTypeAccessMode_lower(_ value: AccessMode) -> RustBuffer 
 
 
 
+public enum ConnectionFailureKind: Equatable, Hashable {
+    
+    case unknownHost
+    case refused
+    case timedOut
+    case lost
+    case other
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension ConnectionFailureKind: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeConnectionFailureKind: FfiConverterRustBuffer {
+    typealias SwiftType = ConnectionFailureKind
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConnectionFailureKind {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .unknownHost
+        
+        case 2: return .refused
+        
+        case 3: return .timedOut
+        
+        case 4: return .lost
+        
+        case 5: return .other
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ConnectionFailureKind, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .unknownHost:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .refused:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .timedOut:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .lost:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .other:
+            writeInt(&buf, Int32(5))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeConnectionFailureKind_lift(_ buf: RustBuffer) throws -> ConnectionFailureKind {
+    return try FfiConverterTypeConnectionFailureKind.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeConnectionFailureKind_lower(_ value: ConnectionFailureKind) -> RustBuffer {
+    return FfiConverterTypeConnectionFailureKind.lower(value)
+}
+
+
+
+
 public enum KeyErrorKind: Equatable, Hashable {
     
     case passphraseRequired
@@ -2676,7 +2763,7 @@ enum RusshError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
 
     
     
-    case ConnectionFailed(message: String
+    case ConnectionFailed(kind: ConnectionFailureKind, message: String
     )
     case Closed(message: String
     )
@@ -2720,6 +2807,7 @@ public struct FfiConverterTypeRusshError: FfiConverterRustBuffer {
 
         
         case 1: return .ConnectionFailed(
+            kind: try FfiConverterTypeConnectionFailureKind.read(from: &buf), 
             message: try FfiConverterString.read(from: &buf)
             )
         case 2: return .Closed(
@@ -2754,8 +2842,9 @@ public struct FfiConverterTypeRusshError: FfiConverterRustBuffer {
 
         
         
-        case let .ConnectionFailed(message):
+        case let .ConnectionFailed(kind,message):
             writeInt(&buf, Int32(1))
+            FfiConverterTypeConnectionFailureKind.write(kind, into: &buf)
             FfiConverterString.write(message, into: &buf)
             
         

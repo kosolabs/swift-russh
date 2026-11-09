@@ -8,7 +8,7 @@ use russh_sftp::protocol::{FileAttributes, OpenFlags, Packet, StatusCode};
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
-use crate::error::{Result, RusshError};
+use crate::error::{ConnectionFailureKind, Result, RusshError};
 use crate::runtime::{run, spawn};
 use crate::session::{Session, SessionInner};
 use crate::transport::{WatchedStream, unless_lost};
@@ -540,7 +540,9 @@ impl PendingRead {
     pub async fn wait(&self) -> Result<Vec<u8>> {
         let receiver = self.receiver.lock().await.take();
         let receiver = receiver.ok_or_else(|| RusshError::invalid_state("Read already awaited"))?;
-        receiver.await.map_err(|_| RusshError::connection_failed("Read was abandoned"))?
+        receiver
+            .await
+            .map_err(|_| RusshError::connection_failed(ConnectionFailureKind::Lost, "Read was abandoned"))?
     }
 }
 
@@ -559,7 +561,9 @@ impl PendingWrite {
     pub async fn wait(&self) -> Result<()> {
         let receiver = self.receiver.lock().await.take();
         let receiver = receiver.ok_or_else(|| RusshError::invalid_state("Write already awaited"))?;
-        receiver.await.map_err(|_| RusshError::connection_failed("Write was abandoned"))?
+        receiver
+            .await
+            .map_err(|_| RusshError::connection_failed(ConnectionFailureKind::Lost, "Write was abandoned"))?
     }
 }
 

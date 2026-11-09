@@ -259,7 +259,7 @@ struct SSHConnectTests {
     await #expect {
       try await SSHClient.hostKey(host: "invalid")
     } throws: { error in
-      (error as? SSHError)?.isConnectionFailed == true
+      (error as? SSHError)?.connectionFailure == .unknownHost
     }
   }
 
@@ -309,7 +309,7 @@ struct SSHConnectTests {
     await #expect {
       try await SSHClient.connect(host: "invalid", user: user)
     } throws: { error in
-      (error as? SSHError)?.isConnectionFailed == true
+      (error as? SSHError)?.connectionFailure == .unknownHost
     }
   }
 
@@ -317,7 +317,7 @@ struct SSHConnectTests {
     await #expect {
       try await SSHClient.connect(host: host, port: 2200, user: user)
     } throws: { error in
-      (error as? SSHError)?.isConnectionFailed == true
+      (error as? SSHError)?.connectionFailure == .refused
     }
   }
 
@@ -325,7 +325,7 @@ struct SSHConnectTests {
     await #expect {
       try await SSHClient.connect(host: "192.0.2.1", timeout: 1, user: user)
     } throws: { error in
-      (error as? SSHError)?.isConnectionFailed == true
+      (error as? SSHError)?.connectionFailure == .timedOut
     }
   }
 }
