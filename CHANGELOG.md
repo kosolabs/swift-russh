@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.0](https://github.com/kosolabs/swift-russh/compare/v0.6.0...v0.7.0) (2026-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* use Int for buffer sizes and SFTP limits ([#25](https://github.com/kosolabs/swift-russh/issues/25))
+* require a host-key validator and take a Duration timeout ([#24](https://github.com/kosolabs/swift-russh/issues/24))
+
+### Features
+
+* require a host-key validator and take a Duration timeout ([#24](https://github.com/kosolabs/swift-russh/issues/24)) ([1ad37d6](https://github.com/kosolabs/swift-russh/commit/1ad37d65e31822e1a920c726aab1cf9b7a3ae0ec))
+* use Int for buffer sizes and SFTP limits ([#25](https://github.com/kosolabs/swift-russh/issues/25)) ([700ff1c](https://github.com/kosolabs/swift-russh/commit/700ff1c3e3ffaa313f75573100e2391941cbf21e))
+
 ## [0.6.0](https://github.com/kosolabs/swift-russh/compare/v0.5.0...v0.6.0) (2026-11-09)
 
 
