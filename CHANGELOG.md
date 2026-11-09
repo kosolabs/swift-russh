@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.0](https://github.com/kosolabs/swift-russh/compare/v0.7.0...v0.8.0) (2026-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* make SFTPReader a Sendable struct ([#28](https://github.com/kosolabs/swift-russh/issues/28))
+* run scoped closures on the caller's isolation ([#27](https://github.com/kosolabs/swift-russh/issues/27))
+
+### Features
+
+* make SFTPReader a Sendable struct ([#28](https://github.com/kosolabs/swift-russh/issues/28)) ([786fde6](https://github.com/kosolabs/swift-russh/commit/786fde645e8b0b986b7abc0c04461634694a905b))
+* run scoped closures on the caller's isolation ([#27](https://github.com/kosolabs/swift-russh/issues/27)) ([8e5fdbc](https://github.com/kosolabs/swift-russh/commit/8e5fdbc7a11542e76a61c6137b7a35374c5a3067))
+
 ## [0.7.0](https://github.com/kosolabs/swift-russh/compare/v0.6.0...v0.7.0) (2026-11-09)
 
 
