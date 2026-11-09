@@ -40,9 +40,8 @@ public struct SFTPClient: Sendable {
   public func removeDirectoryRecursively(at path: String) async throws {
     try await withDirectory(at: path) { directory in
       for try await entry in directory {
-        guard let name = entry.name else { continue }
-        let entryPath = path + "/" + name
-        if entry.type == .directory {
+        let entryPath = path + "/" + entry.name
+        if entry.attributes.type == .directory {
           try await removeDirectoryRecursively(at: entryPath)
         } else {
           try await removeFile(at: entryPath)

@@ -358,7 +358,7 @@ struct StressTree: AsyncParsableCommand {
   ) async throws {
     // The directory closure is @Sendable, so drain it first and judge after.
     let listed = try await sftp.withDirectory(at: path) { directory in
-      var entries: [SFTPAttributes] = []
+      var entries: [SFTPDirectory.Entry] = []
       for try await entry in directory {
         entries.append(entry)
       }
@@ -375,12 +375,9 @@ struct StressTree: AsyncParsableCommand {
     var duplicates: [String] = []
 
     for entry in listed {
-      guard let name = entry.name else {
-        unexpected.append("<unnamed>")
-        continue
-      }
+      let name = entry.name
 
-      switch entry.type {
+      switch entry.attributes.type {
       case .directory:
         guard subdirectories.contains(name) else {
           unexpected.append(name)
@@ -394,7 +391,7 @@ struct StressTree: AsyncParsableCommand {
           unexpected.append(name)
           continue
         }
-        if seenFiles.updateValue(entry.size ?? 0, forKey: name) != nil {
+        if seenFiles.updateValue(entry.attributes.size ?? 0, forKey: name) != nil {
           duplicates.append(name)
         }
       }

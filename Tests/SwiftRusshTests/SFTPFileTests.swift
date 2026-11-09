@@ -16,7 +16,6 @@ struct SFTPFileTests {
           }
         }
 
-        #expect(attrs.name == nil)
         #expect(attrs.type == .regular)
         #expect(attrs.size == 1024)
       }
