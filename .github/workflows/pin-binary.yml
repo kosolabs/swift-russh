@@ -60,7 +60,7 @@ jobs:
         ditto -c -k --norsrc --noextattr --noqtn --keepParent Sources/CRusshFFI.xcframework CRusshFFI.xcframework.zip
         echo "checksum=$(swift package compute-checksum CRusshFFI.xcframework.zip)" >> "$GITHUB_OUTPUT"
 
-    - uses: actions/upload-artifact@v5
+    - uses: actions/upload-artifact@v7
       with:
         name: CRusshFFI-${{ steps.package.outputs.checksum }}
         path: CRusshFFI.xcframework.zip
