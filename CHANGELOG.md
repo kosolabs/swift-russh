@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/kosolabs/swift-russh/compare/v0.1.1...v0.2.0) (2026-11-09)
+
+
+### Features
+
+* give connection failures a reason ([#9](https://github.com/kosolabs/swift-russh/issues/9)) ([fe09507](https://github.com/kosolabs/swift-russh/commit/fe095077d7b25b4f4a5c24b2762083169f72490f))
+
+
+### Bug Fixes
+
+* fail SFTP requests as soon as the connection is lost ([#7](https://github.com/kosolabs/swift-russh/issues/7)) ([dd47cb5](https://github.com/kosolabs/swift-russh/commit/dd47cb5de67a140901132dc5089958921dab1a48))
+
 ## [0.1.1](https://github.com/kosolabs/swift-russh/compare/v0.1.0...v0.1.1) (2026-11-08)
 
 
