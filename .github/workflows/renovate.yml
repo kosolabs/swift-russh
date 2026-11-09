@@ -1,0 +1,36 @@
+name: Renovate
+
+on:
+  schedule:
+    # Approximates "before 10am on Monday" in America/Los_Angeles.
+    - cron: '0 15 * * 1'
+  workflow_dispatch:
+
+jobs:
+  renovate:
+    name: Renovate
+    runs-on: macos-latest
+    environment:
+      name: swift-russh-renovate
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - id: app
+        uses: actions/create-github-app-token@v3.3.0
+        with:
+          client-id: Iv23liXmycC1xcoZVDSz
+          private-key: ${{ secrets.RENOVATE_PRIVATE_KEY }}
+
+      - name: Run Renovate
+        env:
+          RENOVATE_TOKEN: ${{ steps.app.outputs.token }}
+          RENOVATE_PLATFORM: github
+          RENOVATE_ALLOWED_COMMANDS: '["^\\./build\\.sh$"]'
+          LOG_LEVEL: info
+        run: npx --yes renovate@44 ${{ github.repository }}

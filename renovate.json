@@ -9,7 +9,7 @@
   ],
   "semanticCommitType": "fix",
   "automerge": true,
-  "automergeType": "branch",
+  "automergeType": "pr",
   "platformAutomerge": true,
   "packageRules": [
     {
@@ -22,11 +22,19 @@
       "automerge": true
     },
     {
-      "matchPackageNames": [
-        "uniffi"
+      "matchManagers": [
+        "cargo",
+        "rust-toolchain"
       ],
-      "groupName": null,
-      "automerge": false
+      "postUpgradeTasks": {
+        "commands": [
+          "./build.sh"
+        ],
+        "executionMode": "branch",
+        "fileFilters": [
+          "Sources/RusshFFI/RusshFFI.swift"
+        ]
+      }
     }
   ]
 }
