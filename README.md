@@ -36,8 +36,10 @@ Releases are cut by merging release-please's release PR, as in swift-libssh.
 1. When release-please pushes the release branch, **Pin Binary** builds the
    XCFramework, keeps the zip as an artifact named after its checksum, and
    commits the release URL and checksum to `Package.swift` on that branch.
-2. Until that commit lands, CI fails on the release PR, so it can't be merged
-   with the previous release's binary.
+2. Until that commit lands, CI's *Functional Tests* check waits (pending) on
+   the release PR, so it can't be merged with the previous release's binary.
+   Once the pin lands, that run cancels itself and a new run tests the pinned
+   commit. If Pin Binary fails, the check fails.
 3. Merging tags that commit, so the tag already points at the right binary.
    **Release** then attaches the matching artifact to the GitHub release after
    verifying its SHA-256.
