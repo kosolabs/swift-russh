@@ -15,6 +15,17 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v7
 
+    - name: Check a release PR is pinned to its own binary
+      if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'release-please--')
+      env:
+        TITLE: ${{ github.event.pull_request.title }}
+      run: |
+        version="${TITLE##* }"
+        if ! grep -q "releases/download/v$version/CRusshFFI.xcframework.zip" Package.swift; then
+          echo "::error::Package.swift is not pinned to the v$version binary yet. Pin Binary commits the pin when its build finishes, and CI runs again then."
+          exit 1
+        fi
+
     - name: Install the Rust toolchain
       working-directory: rust
       run: rustup toolchain install --no-self-update
