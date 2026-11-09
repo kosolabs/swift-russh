@@ -162,7 +162,7 @@ public struct SFTPFile: Sendable {
       bufferSize: bufferSize)
   }
 
-  public func withAsyncWriter(
+  public nonisolated(nonsending) func withWriter(
     perform body: (SFTPWriter) async throws -> Void
   ) async throws {
     let writer = SFTPWriter(file: self)
@@ -170,9 +170,9 @@ public struct SFTPFile: Sendable {
     try await writer.flush()
   }
 
-  public func download(
+  public nonisolated(nonsending) func download(
     to localURL: URL, bufferSize: Int = SFTPLimits.defaultBufferSize,
-    progress: (@Sendable (UInt64) -> Void)? = nil
+    progress: ((UInt64) -> Void)? = nil
   ) async throws {
     let bufferSize = limits.readLength(for: bufferSize)
     try Data().write(to: localURL)
@@ -187,16 +187,16 @@ public struct SFTPFile: Sendable {
     }
   }
 
-  public func upload(
+  public nonisolated(nonsending) func upload(
     from localURL: URL, bufferSize: Int = SFTPLimits.defaultBufferSize,
-    progress: (@Sendable (UInt64) -> Void)? = nil
+    progress: ((UInt64) -> Void)? = nil
   ) async throws {
     let bufferSize = limits.writeLength(for: bufferSize)
     let fp = try FileHandle(forReadingFrom: localURL)
     defer { try? fp.close() }
 
     var count: UInt64 = 0
-    try await withAsyncWriter { writer in
+    try await withWriter { writer in
       while let data = try fp.read(upToCount: bufferSize) {
         try Task.checkCancellation()
         try await writer.write(contentsOf: data)

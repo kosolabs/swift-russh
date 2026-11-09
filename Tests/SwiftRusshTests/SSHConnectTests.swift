@@ -88,7 +88,7 @@ func withAuthenticatedClient<T: Sendable>(
 struct SSHConnectTests {
   @Test(.enabled(if: password != nil, passwordComment))
   func passwordAuthenticationSucceeds() async throws {
-    try await SSHClient.withAuthenticatedClient(
+    try await SSHClient.withConnection(
       host: host, port: port, user: user, auth: .password(#require(password)),
       hostKey: .expecting(serverHostKey)
     ) { ssh in
@@ -104,7 +104,7 @@ struct SSHConnectTests {
   }
 
   @Test func privateKeyFileAuthenticationSucceeds() async throws {
-    try await SSHClient.withAuthenticatedClient(
+    try await SSHClient.withConnection(
       host: host, port: port, user: user, auth: .privateKey(contentsOf: privateKey),
       hostKey: .expecting(serverHostKey)
     ) { ssh in
@@ -122,7 +122,7 @@ struct SSHConnectTests {
 
   @Test func base64PrivateKeyAuthenticationSucceeds() async throws {
     let privateKey = try String(contentsOf: privateKey, encoding: .utf8)
-    try await SSHClient.withAuthenticatedClient(
+    try await SSHClient.withConnection(
       host: host, port: port, user: user, auth: .privateKey(contents: privateKey),
       hostKey: .expecting(serverHostKey)
     ) { ssh in
@@ -140,7 +140,7 @@ struct SSHConnectTests {
 
   @Test func importedPrivateKeyAuthenticationSucceeds() async throws {
     let key = try SSHPrivateKey(contentsOf: privateKey)
-    try await SSHClient.withAuthenticatedClient(
+    try await SSHClient.withConnection(
       host: host, port: port, user: user, auth: .privateKey(key),
       hostKey: .expecting(serverHostKey)
     ) { ssh in
@@ -158,7 +158,7 @@ struct SSHConnectTests {
   @Test func importedPrivateKeyIsReusableAcrossConnections() async throws {
     let key = try SSHPrivateKey(contentsOf: privateKey)
     for _ in 0..<3 {
-      try await SSHClient.withAuthenticatedClient(
+      try await SSHClient.withConnection(
         host: host, port: port, user: user, auth: .privateKey(key),
         hostKey: .expecting(serverHostKey)
       ) { ssh in
@@ -169,7 +169,7 @@ struct SSHConnectTests {
   }
 
   @Test func encryptedPrivateKeyAuthenticationSucceeds() async throws {
-    try await SSHClient.withAuthenticatedClient(
+    try await SSHClient.withConnection(
       host: host, port: port, user: user,
       auth: .privateKey(contentsOf: encryptedPrivateKey, passphrase: encryptedPassphrase),
       hostKey: .expecting(serverHostKey)
@@ -291,7 +291,7 @@ struct SSHConnectTests {
   }
 
   @Test func matchingExpectedHostKeySucceeds() async throws {
-    try await SSHClient.withAuthenticatedClient(
+    try await SSHClient.withConnection(
       host: host, port: port, user: user, auth: .privateKey(contentsOf: privateKey),
       hostKey: .expecting(serverHostKey)
     ) { ssh in
@@ -321,7 +321,7 @@ struct SSHConnectTests {
 
   @Test func hostKeyValidatorReceivesServerHostKey() async throws {
     let received = Mutex<SSHHostKey?>(nil)
-    try await SSHClient.withAuthenticatedClient(
+    try await SSHClient.withConnection(
       host: host, port: port, user: user, auth: .privateKey(contentsOf: privateKey),
       hostKey: SSHHostKeyValidator { key in received.withLock { $0 = key } }
     ) { _ in }
@@ -339,7 +339,7 @@ struct SSHConnectTests {
   }
 
   @Test func acceptingAnyHostKeyConnects() async throws {
-    let hostKey = try await SSHClient.withAuthenticatedClient(
+    let hostKey = try await SSHClient.withConnection(
       host: host, port: port, user: user, auth: .privateKey(contentsOf: privateKey),
       hostKey: .acceptingAny
     ) { ssh in ssh.hostKey }

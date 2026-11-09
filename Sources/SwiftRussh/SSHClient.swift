@@ -79,10 +79,10 @@ public struct SSHClient: Sendable {
   }
 
   @discardableResult
-  public static func withAuthenticatedClient<T: Sendable>(
+  public nonisolated(nonsending) static func withConnection<T>(
     host: String, port: UInt16 = 22, user: String, auth: SSHAuthMethod = .none,
     hostKey validateHostKey: SSHHostKeyValidator, timeout: Duration = .seconds(60),
-    perform body: @Sendable (SSHClient) async throws -> T
+    perform body: (SSHClient) async throws -> T
   ) async throws -> T {
     let client = try await connect(
       host: host, port: port, user: user, auth: auth, hostKey: validateHostKey,
@@ -109,8 +109,8 @@ public struct SSHClient: Sendable {
   }
 
   @discardableResult
-  public func withSftp<T: Sendable>(
-    perform body: @Sendable (SFTPClient) async throws -> T
+  public nonisolated(nonsending) func withSFTP<T>(
+    perform body: (SFTPClient) async throws -> T
   ) async throws -> T {
     let sftp = try await sftp()
     do {
@@ -138,9 +138,9 @@ public struct SSHClient: Sendable {
     }
   }
 
-  public func execute<T: Sendable>(
+  public nonisolated(nonsending) func execute<T>(
     _ command: String,
-    perform body: @Sendable (SSHChannel) async throws -> T
+    perform body: (SSHChannel) async throws -> T
   ) async throws -> T {
     let channel = try await openChannel()
     do {
