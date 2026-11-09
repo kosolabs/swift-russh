@@ -125,7 +125,7 @@ struct SFTPFileTests {
           }
         }
       } throws: { error in
-        (error as? SSHError)?.sftpError == .noSuchFile
+        (error as? SSHError)?.sftpStatus == .noSuchFile
       }
     }
 
@@ -143,7 +143,7 @@ struct SFTPFileTests {
           }
         }
       } throws: { error in
-        (error as? SSHError)?.sftpError == .permissionDenied
+        (error as? SSHError)?.sftpStatus == .permissionDenied
       }
     }
 
@@ -157,7 +157,7 @@ struct SFTPFileTests {
           }
         }
       } throws: { error in
-        (error as? SSHError)?.sftpError == .failure
+        (error as? SSHError)?.sftpStatus == .failure
       }
     }
   }
@@ -284,7 +284,7 @@ struct SFTPFileTests {
           }
         }
       } throws: { error in
-        (error as? SSHError)?.sftpError == .noSuchFile
+        (error as? SSHError)?.sftpStatus == .noSuchFile
       }
     }
   }
@@ -446,7 +446,7 @@ struct SFTPFileTests {
         await #expect {
           _ = try await file.attributes()
         } throws: { error in
-          (error as? SSHError)?.isClosed == true
+          if case .closed? = error as? SSHError { true } else { false }
         }
       }
 
@@ -488,7 +488,7 @@ struct SFTPFileTests {
         await #expect {
           _ = try await file.attributes()
         } throws: { error in
-          (error as? SSHError)?.isClosed == true
+          if case .closed? = error as? SSHError { true } else { false }
         }
       }
 

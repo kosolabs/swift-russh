@@ -35,7 +35,7 @@ struct SFTPClientTests {
           }
         }
       } throws: { error in
-        (error as? SSHError)?.sftpError == .noSuchFile
+        (error as? SSHError)?.sftpStatus == .noSuchFile
       }
     }
 
@@ -417,7 +417,7 @@ struct SFTPClientTests {
           }
         }
       } throws: { error in
-        (error as? SSHError)?.sftpError == .badMessage
+        (error as? SSHError)?.sftpStatus == .badMessage
       }
     }
   }
@@ -480,7 +480,7 @@ struct SFTPClientTests {
           })
         }
       } throws: { error in
-        (error as? SSHError)?.sftpError == .fileAlreadyExists
+        (error as? SSHError)?.sftpStatus == .fileAlreadyExists
       }
     }
   }
@@ -596,7 +596,7 @@ struct SFTPClientTests {
           })
         }
       } throws: { error in
-        (error as? SSHError)?.sftpError == .noSuchFile
+        (error as? SSHError)?.sftpStatus == .noSuchFile
       }
     }
   }
@@ -661,7 +661,7 @@ struct SFTPClientTests {
           }
         }
       } throws: { error in
-        (error as? SSHError)?.sftpError == .noSuchFile
+        (error as? SSHError)?.sftpStatus == .noSuchFile
       }
     }
   }
@@ -691,7 +691,7 @@ struct SFTPClientTests {
           }
         }
       } throws: { error in
-        (error as? SSHError)?.sftpError == .badMessage
+        (error as? SSHError)?.sftpStatus == .badMessage
       }
     }
 
@@ -703,7 +703,7 @@ struct SFTPClientTests {
           }
         }
       } throws: { error in
-        (error as? SSHError)?.sftpError == .noSuchFile
+        (error as? SSHError)?.sftpStatus == .noSuchFile
       }
     }
   }
@@ -757,7 +757,7 @@ struct SFTPClientTests {
           }
         }
       } throws: { error in
-        (error as? SSHError)?.sftpError == .fileAlreadyExists
+        (error as? SSHError)?.sftpStatus == .fileAlreadyExists
       }
     }
 
@@ -771,7 +771,7 @@ struct SFTPClientTests {
           }
         }
       } throws: { error in
-        (error as? SSHError)?.sftpError == .fileAlreadyExists
+        (error as? SSHError)?.sftpStatus == .fileAlreadyExists
       }
     }
 
@@ -784,7 +784,7 @@ struct SFTPClientTests {
           }
         }
       } throws: { error in
-        (error as? SSHError)?.sftpError == .noSuchFile
+        (error as? SSHError)?.sftpStatus == .noSuchFile
       }
     }
   }
@@ -856,7 +856,7 @@ struct SFTPClientTests {
           })
         }
       } throws: { error in
-        (error as? SSHError)?.sftpError == .noSuchFile
+        (error as? SSHError)?.sftpStatus == .noSuchFile
       }
     }
   }
@@ -1105,7 +1105,7 @@ struct SFTPClientTests {
         }
       }
     } throws: { error in
-      (error as? SSHError)?.sftpError == .noSuchFile
+      (error as? SSHError)?.sftpStatus == .noSuchFile
     }
   }
 
@@ -1161,13 +1161,13 @@ struct SFTPClientTests {
           }
         }
       } throws: { error in
-        (error as? SSHError)?.sftpError == .noSuchFile
+        (error as? SSHError)?.sftpStatus == .noSuchFile
       }
     }
   }
 
   struct LocalFile {
-    @Test func uploadFromMissingLocalFileThrowsLocalFileError() async throws {
+    @Test func uploadFromMissingLocalFileThrowsFileNoSuchFile() async throws {
       try await withAuthenticatedClient { ssh in
         let srcURL = FileManager
           .default
@@ -1179,7 +1179,7 @@ struct SFTPClientTests {
           await #expect {
             try await sftp.upload(from: srcURL, to: destPath)
           } throws: { error in
-            (error as? SSHError)?.isLocalFileError == true
+            (error as? CocoaError)?.code == .fileNoSuchFile
           }
         }
 
@@ -1187,7 +1187,7 @@ struct SFTPClientTests {
       }
     }
 
-    @Test func downloadToUnwritableLocalPathThrowsLocalFileError() async throws {
+    @Test func downloadToMissingLocalDirectoryThrowsFileNoSuchFile() async throws {
       try await withAuthenticatedClient { ssh in
         let srcPath = "/tmp/download-source-\(UUID().uuidString).dat"
         let destURL = URL(fileURLWithPath: "/tmp/no-such-directory-\(UUID().uuidString)/out.dat")
@@ -1198,7 +1198,7 @@ struct SFTPClientTests {
           await #expect {
             try await sftp.download(from: srcPath, to: destURL)
           } throws: { error in
-            (error as? SSHError)?.isLocalFileError == true
+            (error as? CocoaError)?.code == .fileNoSuchFile
           }
         }
 
@@ -1279,7 +1279,7 @@ struct SFTPClientTests {
       await #expect {
         _ = try await sftp.attributes(at: "/tmp")
       } throws: { error in
-        (error as? SSHError)?.isClosed == true
+        if case .closed? = error as? SSHError { true } else { false }
       }
     }
 
@@ -1290,7 +1290,7 @@ struct SFTPClientTests {
       await #expect {
         _ = try await ssh.sftp()
       } throws: { error in
-        (error as? SSHError)?.isClosed == true
+        if case .closed? = error as? SSHError { true } else { false }
       }
     }
 
@@ -1302,7 +1302,7 @@ struct SFTPClientTests {
         await #expect {
           _ = try await sftp.attributes(at: "/tmp")
         } throws: { error in
-          (error as? SSHError)?.isClosed == true
+          if case .closed? = error as? SSHError { true } else { false }
         }
       }
     }
@@ -1320,7 +1320,7 @@ struct SFTPClientTests {
           await #expect {
             _ = try await iterator.next()
           } throws: { error in
-            (error as? SSHError)?.isClosed == true
+            if case .closed? = error as? SSHError { true } else { false }
           }
         }
       }

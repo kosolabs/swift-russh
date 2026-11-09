@@ -14,26 +14,26 @@ public struct SFTPClient: Sendable {
     await sftp.close()
   }
 
-  public func createDirectory(at path: String, mode: mode_t = 0o777) async throws(SSHError) {
+  public func createDirectory(at path: String, mode: mode_t = 0o777) async throws {
     try await bridge { try await sftp.mkdir(path: path, mode: UInt32(mode)) }
   }
 
   public func createDirectoryRecursively(
     at path: String, mode: mode_t = 0o777
-  ) async throws(SSHError) {
+  ) async throws {
     let isAbsolute = path.hasPrefix("/")
     let components = path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
     for i in components.indices {
       let partial = (isAbsolute ? "/" : "") + components[0...i].joined(separator: "/")
       do {
         try await createDirectory(at: partial, mode: mode)
-      } catch {
-        guard error.sftpError == .fileAlreadyExists else { throw error }
+      } catch SSHError.sftp(.fileAlreadyExists, _) {
+        continue
       }
     }
   }
 
-  public func removeDirectory(at path: String) async throws(SSHError) {
+  public func removeDirectory(at path: String) async throws {
     try await bridge { try await sftp.rmdir(path: path) }
   }
 
@@ -68,7 +68,7 @@ public struct SFTPClient: Sendable {
 
   public func attributes(
     at path: String, followSymlinks: Bool = true
-  ) async throws(SSHError) -> SFTPAttributes {
+  ) async throws -> SFTPAttributes {
     SFTPAttributes(try await bridge { try await sftp.stat(path: path, followSymlinks: followSymlinks) })
   }
 
@@ -81,7 +81,7 @@ public struct SFTPClient: Sendable {
     permissions: mode_t? = nil,
     accessTime: Date? = nil,
     modifyTime: Date? = nil
-  ) async throws(SSHError) {
+  ) async throws {
     let changes = AttributeChanges(
       size: size,
       uid: uid,
@@ -95,19 +95,19 @@ public struct SFTPClient: Sendable {
     }
   }
 
-  public func move(from oldPath: String, to newPath: String) async throws(SSHError) {
+  public func move(from oldPath: String, to newPath: String) async throws {
     try await bridge { try await sftp.rename(from: oldPath, to: newPath) }
   }
 
-  public func removeFile(at path: String) async throws(SSHError) {
+  public func removeFile(at path: String) async throws {
     try await bridge { try await sftp.remove(path: path) }
   }
 
-  public func symlinkTarget(at path: String) async throws(SSHError) -> String {
+  public func symlinkTarget(at path: String) async throws -> String {
     try await bridge { try await sftp.readlink(path: path) }
   }
 
-  public func createSymlink(to target: String, at dest: String) async throws(SSHError) {
+  public func createSymlink(to target: String, at dest: String) async throws {
     try await bridge { try await sftp.symlink(target: target, dest: dest) }
   }
 

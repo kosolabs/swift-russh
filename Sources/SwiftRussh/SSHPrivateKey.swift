@@ -30,15 +30,16 @@ public enum SSHKeyType: Sendable, Equatable {
 public final class SSHPrivateKey: Sendable {
   let key: PrivateKey
 
-  public convenience init(contentsOf file: URL, passphrase: String? = nil) throws(SSHError) {
+  public convenience init(contentsOf file: URL, passphrase: String? = nil) throws {
     let source = "file \(file.path)"
     guard let data = FileManager.default.contents(atPath: file.path) else {
-      throw SSHError.keyError(.unreadable, message: SSHKeyError.unreadable.message(source: source))
+      let reason = SSHError.PrivateKeyFailure.unreadable
+      throw SSHError.privateKey(reason, message: reason.message(source: source))
     }
     try self.init(contents: String(decoding: data, as: UTF8.self), passphrase: passphrase, source: source)
   }
 
-  public convenience init(contents: String, passphrase: String? = nil) throws(SSHError) {
+  public convenience init(contents: String, passphrase: String? = nil) throws {
     try self.init(contents: contents, passphrase: passphrase, source: "data")
   }
 
@@ -46,9 +47,9 @@ public final class SSHPrivateKey: Sendable {
     do {
       key = try PrivateKey.decode(contents: contents, passphrase: passphrase)
     } catch {
-      let reason: SSHKeyError =
+      let reason: SSHError.PrivateKeyFailure =
         if case RusshError.Key(.passphraseRequired, _) = error { .passphraseRequired } else { .invalid }
-      throw SSHError.keyError(reason, message: reason.message(source: source))
+      throw SSHError.privateKey(reason, message: reason.message(source: source))
     }
   }
 
@@ -57,7 +58,7 @@ public final class SSHPrivateKey: Sendable {
   }
 }
 
-extension SSHKeyError {
+extension SSHError.PrivateKeyFailure {
   fileprivate func message(source: String) -> String {
     switch self {
     case .unreadable:
