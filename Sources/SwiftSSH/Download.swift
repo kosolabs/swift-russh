@@ -23,7 +23,7 @@ struct Download: AsyncParsableCommand {
       let attrs = try await sftp.attributes(at: src)
       let speedometer = Speedometer(total: attrs.size ?? 0)
 
-      try await sftp.withSftpFile(at: src, accessType: .readOnly) { file in
+      try await sftp.withFile(at: src, access: .readOnly) { file in
         try await file.download(to: URL(filePath: dst), bufferSize: bufferSize) { completed in
           if let progress = speedometer.update(completed: Int(completed)) {
             print("Downloading from \(src) to \(dst): \(progress)")

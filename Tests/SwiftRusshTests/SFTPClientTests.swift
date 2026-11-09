@@ -461,7 +461,7 @@ struct SFTPClientTests {
         try await ssh.execute("rm -rf \(path)")
 
         let attrs = try await ssh.withSftp { sftp in
-          try await sftp.createDirectory(at: path, mode: 0o700)
+          try await sftp.createDirectory(at: path, permissions: 0o700)
           return try await sftp.attributes(at: path)
         }
 
@@ -975,7 +975,7 @@ struct SFTPClientTests {
           let transferred = Atomic<UInt64>(0)
 
           let elapsed = try await ContinuousClock().measure {
-            try await sftp.upload(from: srcURL, to: destPath, mode: 0o644) { progress in
+            try await sftp.upload(from: srcURL, to: destPath, permissions: 0o644) { progress in
               transferred.store(progress, ordering: .relaxed)
             }
           }
@@ -1006,7 +1006,9 @@ struct SFTPClientTests {
           let size = try FileManager.default.attributesOfItem(atPath: srcURL.path)[.size] as! UInt64
           let transferred = Atomic<UInt64>(0)
 
-          try await sftp.upload(from: srcURL, to: destPath, mode: 0o644, bufferSize: 1_048_576) {
+          try await sftp.upload(
+            from: srcURL, to: destPath, permissions: 0o644, bufferSize: 1_048_576
+          ) {
             progress in
             transferred.store(progress, ordering: .relaxed)
           }

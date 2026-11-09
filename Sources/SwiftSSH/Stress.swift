@@ -117,7 +117,7 @@ struct Stress: AsyncParsableCommand {
     // scratch directory, verifies checksums server-side, and cleans up at the end.
     let (control, controlSftp) = try await sshConfig.connectWithSftp()
     let limiter = ChannelLimiter(limit: verifyConcurrency)
-    try await controlSftp.createDirectoryRecursively(at: remoteDir, mode: 0o755)
+    try await controlSftp.createDirectoryRecursively(at: remoteDir, permissions: 0o755)
 
     do {
       try await withThrowingTaskGroup(of: Void.self) { group in
@@ -215,13 +215,14 @@ struct Stress: AsyncParsableCommand {
 
     if cancelUpload {
       await abort(after: &generator) {
-        try await sftp.upload(from: source, to: remotePath, mode: 0o644, bufferSize: bufferSize)
+        try await sftp.upload(
+          from: source, to: remotePath, permissions: 0o644, bufferSize: bufferSize)
       }
       stats.update { $0.cancellations += 1 }
     }
 
     // Upload, then confirm the bytes that landed are the bytes we sent.
-    try await sftp.upload(from: source, to: remotePath, mode: 0o644, bufferSize: bufferSize)
+    try await sftp.upload(from: source, to: remotePath, permissions: 0o644, bufferSize: bufferSize)
     stats.update {
       $0.uploads += 1
       $0.bytesUp += size
@@ -293,7 +294,7 @@ struct Stress: AsyncParsableCommand {
   /// stream ends. The reader hands out prefixes of one reused buffer, so anything
   /// short of a real copy-on-write shows up here as a corrupted digest.
   private func streamedDigest(sftp: SFTPClient, path: String) async throws -> String {
-    try await sftp.withSftpFile(at: path, accessType: .readOnly) { file in
+    try await sftp.withFile(at: path, access: .readOnly) { file in
       var chunks: [Data] = []
       for try await chunk in file.stream(bufferSize: bufferSize) {
         chunks.append(chunk)

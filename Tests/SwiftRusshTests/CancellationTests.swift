@@ -29,7 +29,7 @@ struct CancellationTests {
 
       try await ssh.withSftp { sftp in
         let task = Task {
-          try await sftp.withSftpFile(at: path, accessType: .readOnly) { file in
+          try await sftp.withFile(at: path, access: .readOnly) { file in
             for try await _ in file.stream(bufferSize: 1024) {
               cancelCurrentTask()
             }
@@ -44,7 +44,8 @@ struct CancellationTests {
   @Test func cancellingDirectoryIterationThrowsCancellationError() async throws {
     try await withAuthenticatedClient { ssh in
       let path = "/tmp/cancel-directory"
-      try await ssh.execute("rm -rf \(path) && mkdir \(path) && touch \(path)/a \(path)/b \(path)/c")
+      try await ssh.execute(
+        "rm -rf \(path) && mkdir \(path) && touch \(path)/a \(path)/b \(path)/c")
 
       try await ssh.withSftp { sftp in
         let task = Task {
