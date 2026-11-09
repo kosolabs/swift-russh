@@ -1,7 +1,7 @@
 import Foundation
 import RusshFFI
 
-public class SFTPReader: AsyncSequence {
+public struct SFTPReader: AsyncSequence, Sendable {
   private let file: SFTPFile
   private let offset: UInt64
   private let length: UInt64
@@ -18,8 +18,8 @@ public class SFTPReader: AsyncSequence {
     Iterator(file: file, offset: offset, length: length, bufferSize: bufferSize)
   }
 
-  public class Iterator: AsyncIteratorProtocol {
-    static let QueueSize: Int = 16
+  public struct Iterator: AsyncIteratorProtocol {
+    private static let queueSize = 16
 
     private let file: SFTPFile
     private let offset: UInt64
@@ -36,10 +36,10 @@ public class SFTPReader: AsyncSequence {
       self.bufferSize = bufferSize
     }
 
-    public func next() async throws -> Data? {
+    public mutating func next() async throws -> Data? {
       try Task.checkCancellation()
 
-      while queue.count < Iterator.QueueSize && requested < length {
+      while queue.count < Self.queueSize && requested < length {
         let size = Swift.min(UInt64(bufferSize), length - requested)
         queue.append(try file.beginRead(at: offset + requested, length: Int(size)))
         requested += size
@@ -55,8 +55,8 @@ public class SFTPReader: AsyncSequence {
   }
 }
 
-public class SFTPWriter {
-  static let QueueSize: Int = 16
+public final class SFTPWriter {
+  private static let queueSize = 16
 
   private let file: SFTPFile
   private var offset: UInt64 = 0
@@ -69,7 +69,7 @@ public class SFTPWriter {
   public func write(contentsOf data: Data) async throws {
     var remaining = data[...]
     while !remaining.isEmpty {
-      if queue.count == Self.QueueSize {
+      if queue.count == Self.queueSize {
         try await queue.removeFirst().flush()
       }
       let aio = try file.beginWrite(at: offset, data: remaining)

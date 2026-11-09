@@ -183,6 +183,33 @@ struct SFTPFileTests {
       }
     }
 
+    @Test func streamIsConsumableFromConcurrentTasks() async throws {
+      try await withAuthenticatedClient { ssh in
+        let srcPath = "/tmp/stream-concurrent-tasks-test.dat"
+
+        try await ssh.execute("dd if=/dev/urandom of=\(srcPath) bs=1M count=1")
+        let expected = try await ssh.md5(ofFile: srcPath)
+
+        let digests = try await ssh.withSftp { sftp in
+          try await sftp.withFile(at: srcPath, access: .readOnly) { file in
+            let stream = file.stream()
+            return try await withThrowingTaskGroup(of: String.self) { group in
+              for _ in 0..<2 {
+                group.addTask {
+                  var result = Data()
+                  for try await data in stream { result.append(data) }
+                  return result.md5()
+                }
+              }
+              return try await group.reduce(into: []) { $0.append($1) }
+            }
+          }
+        }
+
+        #expect(digests == [expected, expected])
+      }
+    }
+
     @Test func streamRangeSomeSucceeds() async throws {
       try await withAuthenticatedClient { ssh in
         let srcPath = "/tmp/stream-range-some-test.dat"
