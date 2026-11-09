@@ -442,8 +442,7 @@ struct StressTree: AsyncParsableCommand {
       _ = try await sftp.attributes(at: root)
       stats.update { $0.mismatches += 1 }
       print("[\(label)] STALE TREE \(root) still exists after recursive removal")
-    } catch {
-      guard error.sftpError == .noSuchFile else { throw error }
+    } catch SSHError.sftp(.noSuchFile, _) {
     }
   }
 

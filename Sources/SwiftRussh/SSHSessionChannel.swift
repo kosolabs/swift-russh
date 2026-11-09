@@ -45,11 +45,11 @@ public struct SSHSessionChannel: Sendable {
     await channel.close()
   }
 
-  public func execute(command: String) async throws(SSHError) {
+  public func execute(command: String) async throws {
     try await bridge { try await channel.exec(command: command) }
   }
 
-  public func exitStatus() async throws(SSHError) -> SSHExitStatus {
+  public func exitStatus() async throws -> SSHExitStatus {
     SSHExitStatus(try await bridge { try await channel.exitStatus() })
   }
 

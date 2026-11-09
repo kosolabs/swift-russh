@@ -181,7 +181,7 @@ struct SSHConnectTests {
     await #expect {
       try await SSHClient.connect(host: host, port: port, user: user)
     } throws: { error in
-      (error as? SSHError)?.isAuthenticationFailed == true
+      if case .authenticationFailed? = error as? SSHError { true } else { false }
     }
   }
 
@@ -189,7 +189,7 @@ struct SSHConnectTests {
     await #expect {
       try await SSHClient.connect(host: host, port: port, user: user, auth: .password("bad"))
     } throws: { error in
-      (error as? SSHError)?.isAuthenticationFailed == true
+      if case .authenticationFailed? = error as? SSHError { true } else { false }
     }
   }
 
@@ -199,7 +199,7 @@ struct SSHConnectTests {
         host: host, port: port, user: user,
         auth: .privateKey(contentsOf: URL(filePath: "/tmp/missing_pk")))
     } throws: { error in
-      (error as? SSHError)?.keyError == .unreadable
+      (error as? SSHError)?.privateKeyFailure == .unreadable
     }
   }
 
@@ -208,7 +208,7 @@ struct SSHConnectTests {
       try await SSHClient.connect(
         host: host, port: port, user: user, auth: .privateKey(contentsOf: publicKey))
     } throws: { error in
-      (error as? SSHError)?.keyError == .invalid
+      (error as? SSHError)?.privateKeyFailure == .invalid
     }
   }
 
@@ -217,7 +217,7 @@ struct SSHConnectTests {
       try await SSHClient.connect(
         host: host, port: port, user: user, auth: .privateKey(contents: ""))
     } throws: { error in
-      (error as? SSHError)?.keyError == .invalid
+      (error as? SSHError)?.privateKeyFailure == .invalid
     }
   }
 
@@ -227,7 +227,7 @@ struct SSHConnectTests {
         host: host, port: port, user: user,
         auth: .privateKey(contentsOf: encryptedPrivateKey))
     } throws: { error in
-      (error as? SSHError)?.keyError == .passphraseRequired
+      (error as? SSHError)?.privateKeyFailure == .passphraseRequired
     }
   }
 
@@ -297,11 +297,10 @@ struct SSHConnectTests {
         expectedHostKey: expected
       )
     } throws: { error in
-      (error as? SSHError)
-        == .hostKeyMismatch(
-          expected: expected, actual: actual,
-          message: "Server host key \(actual.fingerprint) does not match \(expected.fingerprint)"
-        )
+      guard case .hostKeyMismatch(expected, actual, let message)? = error as? SSHError else {
+        return false
+      }
+      return message == "Server host key \(actual.fingerprint) does not match \(expected.fingerprint)"
     }
   }
 

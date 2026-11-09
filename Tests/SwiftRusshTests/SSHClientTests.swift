@@ -104,7 +104,7 @@ struct SSHClientTests {
       await #expect {
         try await ssh.execute("whoami")
       } throws: { error in
-        (error as? SSHError)?.isClosed == true
+        if case .closed? = error as? SSHError { true } else { false }
       }
     }
   }
@@ -126,7 +126,10 @@ struct SSHClientTests {
 
         for client in clients { await client.close() }
 
-        #expect(caught?.isChannelOpenFailed == true)
+        guard case .channelOpenFailed? = caught else {
+          Issue.record("Expected channelOpenFailed, got \(String(describing: caught))")
+          return
+        }
       }
     }
 
@@ -154,7 +157,7 @@ struct SSHClientTests {
         }
 
         #expect(!failures.isEmpty)
-        #expect(failures.allSatisfy { $0.isChannelOpenFailed })
+        #expect(failures.allSatisfy { if case .channelOpenFailed = $0 { true } else { false } })
       }
     }
   }
@@ -205,7 +208,7 @@ struct SSHClientTests {
     await #expect {
       _ = try await ssh.execute("whoami")
     } throws: { error in
-      (error as? SSHError)?.isClosed == true
+      if case .closed? = error as? SSHError { true } else { false }
     }
   }
 }

@@ -74,7 +74,7 @@ public class SFTPWriter {
     self.file = file
   }
 
-  public func write(data: Data) async throws(SSHError) {
+  public func write(data: Data) async throws {
     var remaining = data[...]
     while !remaining.isEmpty {
       guard queue.count < Self.QueueSize,
@@ -92,7 +92,7 @@ public class SFTPWriter {
     }
   }
 
-  public func flush() async throws(SSHError) {
+  public func flush() async throws {
     while !queue.isEmpty {
       try await queue.removeFirst().flush()
     }
@@ -112,7 +112,7 @@ public struct SFTPFile: Sendable {
     await file.close()
   }
 
-  public func attributes() async throws(SSHError) -> SFTPAttributes {
+  public func attributes() async throws -> SFTPAttributes {
     SFTPAttributes(try await bridge { try await file.stat() })
   }
 
@@ -123,7 +123,7 @@ public struct SFTPFile: Sendable {
   public func read(
     range: Range<UInt64>,
     bufferSize: UInt64 = SFTPLimits.defaultBufferSize
-  ) async throws(SSHError) -> Data {
+  ) async throws -> Data {
     try await read(
       offset: range.lowerBound, length: range.upperBound - range.lowerBound,
       bufferSize: bufferSize
@@ -133,7 +133,7 @@ public struct SFTPFile: Sendable {
   public func read(
     offset: UInt64 = 0, length: UInt64 = UInt64.max,
     bufferSize: UInt64 = SFTPLimits.defaultBufferSize
-  ) async throws(SSHError) -> Data {
+  ) async throws -> Data {
     let bufferSize = limits.readLength(for: bufferSize)
     try await seek(offset: offset)
     var result = Data()
@@ -148,7 +148,7 @@ public struct SFTPFile: Sendable {
 
   public func write(
     data: Data, bufferSize: UInt64 = SFTPLimits.defaultBufferSize
-  ) async throws(SSHError) {
+  ) async throws {
     let bufferSize = Int(limits.writeLength(for: bufferSize))
     for curr in stride(from: 0, to: data.count, by: bufferSize) {
       let next = min(data.count, curr + bufferSize)
@@ -204,13 +204,8 @@ public struct SFTPFile: Sendable {
     progress: (@Sendable (UInt64) -> Void)? = nil
   ) async throws {
     let bufferSize = limits.readLength(for: bufferSize)
-    if !FileManager.default.createFile(atPath: localURL.path, contents: nil) {
-      throw SSHError.localFileError(message: "Failed to create local file at \(localURL)")
-    }
-
-    guard let fp = try? FileHandle(forWritingTo: localURL) else {
-      throw SSHError.localFileError(message: "Failed to open local file for writing at \(localURL)")
-    }
+    try Data().write(to: localURL)
+    let fp = try FileHandle(forWritingTo: localURL)
     defer { try? fp.close() }
 
     var count: UInt64 = 0
@@ -226,9 +221,7 @@ public struct SFTPFile: Sendable {
     progress: (@Sendable (UInt64) -> Void)? = nil
   ) async throws {
     let bufferSize = Int(limits.writeLength(for: bufferSize))
-    guard let fp = try? FileHandle(forReadingFrom: localURL) else {
-      throw SSHError.localFileError(message: "Failed to open local file for reading at \(localURL)")
-    }
+    let fp = try FileHandle(forReadingFrom: localURL)
     defer { try? fp.close() }
 
     var count: UInt64 = 0

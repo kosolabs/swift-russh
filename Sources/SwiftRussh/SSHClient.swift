@@ -8,13 +8,13 @@ public enum SSHAuthMethod: Sendable {
 
   public static func privateKey(
     contentsOf file: URL, passphrase: String? = nil
-  ) throws(SSHError) -> Self {
+  ) throws -> Self {
     .privateKey(try SSHPrivateKey(contentsOf: file, passphrase: passphrase))
   }
 
   public static func privateKey(
     contents: String, passphrase: String? = nil
-  ) throws(SSHError) -> Self {
+  ) throws -> Self {
     .privateKey(try SSHPrivateKey(contents: contents, passphrase: passphrase))
   }
 }
@@ -34,10 +34,10 @@ public struct SSHClient: Sendable {
     }
   }
 
-  private func verifyHostKey(_ expected: SSHHostKey) async throws(SSHError) {
+  private func verifyHostKey(_ expected: SSHHostKey) async throws {
     let actual = try await hostKey
     guard actual == expected else {
-      throw .hostKeyMismatch(
+      throw SSHError.hostKeyMismatch(
         expected: expected, actual: actual,
         message: "Server host key \(actual.fingerprint) does not match \(expected.fingerprint)"
       )
@@ -60,7 +60,7 @@ public struct SSHClient: Sendable {
   public static func connect(
     host: String, port: UInt16 = 22, timeout: UInt = 60,
     user: String, auth: SSHAuthMethod = .none, expectedHostKey: SSHHostKey? = nil
-  ) async throws(SSHError) -> SSHClient {
+  ) async throws -> SSHClient {
     let client = try await SSHClient(host: host, port: port, timeout: timeout)
     do {
       if let expectedHostKey {
@@ -76,7 +76,7 @@ public struct SSHClient: Sendable {
 
   public static func hostKey(
     host: String, port: UInt16 = 22, timeout: UInt = 60
-  ) async throws(SSHError) -> SSHHostKey {
+  ) async throws -> SSHHostKey {
     let client = try await SSHClient(host: host, port: port, timeout: timeout)
     do {
       let hostKey = try await client.hostKey
@@ -109,7 +109,7 @@ public struct SSHClient: Sendable {
   }
 
   public var hostKey: SSHHostKey {
-    get async throws(SSHError) {
+    get async throws {
       SSHHostKey(try bridge { try session.hostKey() })
     }
   }
@@ -120,7 +120,7 @@ public struct SSHClient: Sendable {
     }
   }
 
-  public func sftp() async throws(SSHError) -> SFTPClient {
+  public func sftp() async throws -> SFTPClient {
     SFTPClient(try await bridge { try await session.sftp() })
   }
 

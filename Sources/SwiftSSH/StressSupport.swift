@@ -61,9 +61,8 @@ struct StressShared: Sendable {
       let sftp: SFTPClient
       do {
         sftp = try await ssh.sftp()
-      } catch {
-        // `sftp()` has typed throws, so `error` is already an SSHError here.
-        guard error.isChannelOpenFailed else { throw error }
+      } catch let error as SSHError {
+        guard case .channelOpenFailed = error else { throw error }
         throw StressError(
           message: """
             The server refused another SFTP channel on this connection. sshd caps \

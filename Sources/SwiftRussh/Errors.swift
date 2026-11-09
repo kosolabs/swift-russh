@@ -27,48 +27,98 @@ public enum StreamType: Int32, Sendable {
   }
 }
 
-public enum SFTPError: Codable, Error, Sendable, Equatable {
-  case eof
-  case noSuchFile
-  case permissionDenied
-  case failure
-  case badMessage
-  case noConnection
-  case connectionLost
-  case opUnsupported
-  case invalidHandle
-  case noSuchPath
-  case fileAlreadyExists
-  case writeProtect
-  case noMedia
+public enum SSHError: Error, Sendable {
+  case connectionFailed(ConnectionFailure, message: String)
+  case closed(message: String)
+  case authenticationFailed(message: String)
+  case hostKeyMismatch(expected: SSHHostKey, actual: SSHHostKey, message: String)
+  case privateKey(PrivateKeyFailure, message: String)
+  case sftp(SFTPStatus, message: String)
+  case channelOpenFailed(message: String)
+  case invalidState(message: String)
 
-  static func from(code: UInt32) -> SFTPError? {
-    switch code {
-    case 1: .eof
-    case 2: .noSuchFile
-    case 3: .permissionDenied
-    case 4: .failure
-    case 5: .badMessage
-    case 6: .noConnection
-    case 7: .connectionLost
-    case 8: .opUnsupported
-    case 9: .invalidHandle
-    case 10: .noSuchPath
-    case 11: .fileAlreadyExists
-    case 12: .writeProtect
-    case 13: .noMedia
-    default: nil
+  public enum ConnectionFailure: Hashable, Sendable {
+    case unknownHost
+    case refused
+    case timedOut
+    case lost
+    case other
+  }
+
+  public enum PrivateKeyFailure: Hashable, Sendable {
+    case unreadable
+    case passphraseRequired
+    case invalid
+  }
+
+  public enum SFTPStatus: Hashable, Sendable {
+    case endOfFile
+    case noSuchFile
+    case permissionDenied
+    case failure
+    case badMessage
+    case noConnection
+    case connectionLost
+    case operationUnsupported
+    case fileAlreadyExists
+  }
+
+  public var message: String {
+    switch self {
+    case .connectionFailed(_, let message),
+      .closed(let message),
+      .authenticationFailed(let message),
+      .hostKeyMismatch(_, _, let message),
+      .privateKey(_, let message),
+      .sftp(_, let message),
+      .channelOpenFailed(let message),
+      .invalidState(let message):
+      message
+    }
+  }
+
+  public var connectionFailure: ConnectionFailure? {
+    guard case .connectionFailed(let failure, _) = self else { return nil }
+    return failure
+  }
+
+  public var privateKeyFailure: PrivateKeyFailure? {
+    guard case .privateKey(let failure, _) = self else { return nil }
+    return failure
+  }
+
+  public var sftpStatus: SFTPStatus? {
+    guard case .sftp(let status, _) = self else { return nil }
+    return status
+  }
+}
+
+extension SSHError: LocalizedError {
+  public var errorDescription: String? { message }
+}
+
+extension SSHError {
+  init(_ error: RusshError) {
+    switch error {
+    case .ConnectionFailed(let kind, let message):
+      self = .connectionFailed(ConnectionFailure(kind), message: message)
+    case .Closed(let message):
+      self = .closed(message: message)
+    case .AuthenticationFailed(let message):
+      self = .authenticationFailed(message: message)
+    case .Key(let kind, let message):
+      self = .privateKey(kind == .passphraseRequired ? .passphraseRequired : .invalid, message: message)
+    case .Sftp(let code, let message):
+      self = .sftp(SFTPStatus(code: code), message: message)
+    case .ChannelOpenFailed(let message):
+      self = .channelOpenFailed(message: message)
+    case .InvalidState(let message):
+      self = .invalidState(message: message)
     }
   }
 }
 
-public enum ConnectionFailure: Codable, Sendable, Equatable {
-  case unknownHost
-  case refused
-  case timedOut
-  case lost
-  case other
-
+extension SSHError.ConnectionFailure {
   init(_ kind: ConnectionFailureKind) {
     switch kind {
     case .unknownHost: self = .unknownHost
@@ -80,100 +130,19 @@ public enum ConnectionFailure: Codable, Sendable, Equatable {
   }
 }
 
-public enum SSHKeyError: Codable, Error, Sendable, Equatable {
-  case unreadable
-  case passphraseRequired
-  case invalid
-}
-
-public enum SSHError: Codable, Error, Sendable, Equatable {
-  case connectionFailed(ConnectionFailure, message: String)
-  case closed(message: String)
-  case authenticationFailed(message: String)
-  case hostKeyMismatch(expected: SSHHostKey, actual: SSHHostKey, message: String)
-  case keyError(SSHKeyError, message: String)
-  case sftpError(SFTPError, message: String)
-  case channelOpenFailed(message: String)
-  case localFileError(message: String)
-  case libraryError(code: Int32, message: String)
-  case invalidState(message: String)
-
-  init(_ error: RusshError) {
-    switch error {
-    case .ConnectionFailed(let kind, let message):
-      self = .connectionFailed(ConnectionFailure(kind), message: message)
-    case .Closed(let message):
-      self = .closed(message: message)
-    case .AuthenticationFailed(let message):
-      self = .authenticationFailed(message: message)
-    case .Key(let kind, let message):
-      self = .keyError(kind == .passphraseRequired ? .passphraseRequired : .invalid, message: message)
-    case .Sftp(let code, let message):
-      if let sftpError = SFTPError.from(code: code) {
-        self = .sftpError(sftpError, message: message)
-      } else {
-        self = .libraryError(code: Int32(bitPattern: code), message: message)
-      }
-    case .ChannelOpenFailed(let message):
-      self = .channelOpenFailed(message: message)
-    case .InvalidState(let message):
-      self = .invalidState(message: message)
+extension SSHError.SFTPStatus {
+  init(code: UInt32) {
+    switch code {
+    case 1: self = .endOfFile
+    case 2: self = .noSuchFile
+    case 3: self = .permissionDenied
+    case 5: self = .badMessage
+    case 6: self = .noConnection
+    case 7: self = .connectionLost
+    case 8: self = .operationUnsupported
+    case 11: self = .fileAlreadyExists
+    default: self = .failure
     }
-  }
-
-  public var isConnectionFailed: Bool {
-    if case .connectionFailed = self { return true }
-    return false
-  }
-
-  public var connectionFailure: ConnectionFailure? {
-    guard case .connectionFailed(let failure, _) = self else { return nil }
-    return failure
-  }
-
-  public var isClosed: Bool {
-    if case .closed = self { return true }
-    return false
-  }
-
-  public var isAuthenticationFailed: Bool {
-    if case .authenticationFailed = self { return true }
-    return false
-  }
-
-  public var isHostKeyMismatch: Bool {
-    if case .hostKeyMismatch = self { return true }
-    return false
-  }
-
-  public var keyError: SSHKeyError? {
-    guard case .keyError(let error, _) = self else { return nil }
-    return error
-  }
-
-  public var sftpError: SFTPError? {
-    guard case .sftpError(let error, _) = self else { return nil }
-    return error
-  }
-
-  public var isChannelOpenFailed: Bool {
-    if case .channelOpenFailed = self { return true }
-    return false
-  }
-
-  public var isLocalFileError: Bool {
-    if case .localFileError = self { return true }
-    return false
-  }
-
-  public var isLibraryError: Bool {
-    if case .libraryError = self { return true }
-    return false
-  }
-
-  public var isInvalidState: Bool {
-    if case .invalidState = self { return true }
-    return false
   }
 }
 
