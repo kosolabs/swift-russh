@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/kosolabs/swift-russh/compare/v0.2.1...v0.3.0) (2026-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* the iterators of SSHChannelData, SFTPReader and SFTPDirectory, SSHSessionChannel.read(from:) and SSHClient.execute(_:) now throw any Error instead of SSHError, so code relying on the typed error must cast it.
+
+### Bug Fixes
+
+* clamp SFTP timestamps instead of crashing on out-of-range dates ([#13](https://github.com/kosolabs/swift-russh/issues/13)) ([6c00466](https://github.com/kosolabs/swift-russh/commit/6c004669c6538f99a222178e107d485ff943c70e))
+* throw CancellationError when a stream is cancelled ([#14](https://github.com/kosolabs/swift-russh/issues/14)) ([aeffe8f](https://github.com/kosolabs/swift-russh/commit/aeffe8f9302a2da34f7d209d993a8a0adad597dc))
+
 ## [0.2.1](https://github.com/kosolabs/swift-russh/compare/v0.2.0...v0.2.1) (2026-11-09)
 
 
