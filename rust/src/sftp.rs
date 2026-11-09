@@ -6,10 +6,12 @@ use russh_sftp::client::rawsession::Limits;
 use russh_sftp::client::{Config, RawSftpSession};
 use russh_sftp::protocol::{FileAttributes, OpenFlags, Packet, StatusCode};
 use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 
 use crate::error::{Result, RusshError};
 use crate::runtime::{run, spawn};
 use crate::session::{Session, SessionInner};
+use crate::transport::{WatchedStream, unless_lost};
 
 const POSIX_RENAME: &str = "posix-rename@openssh.com";
 const LSETSTAT: &str = "lsetstat@openssh.com";
@@ -95,6 +97,7 @@ impl AccessMode {
 pub(crate) struct SftpInner {
     session: Arc<SessionInner>,
     raw: RawSftpSession,
+    lost: CancellationToken,
     closed: AtomicBool,
     limits: SftpLimits,
     posix_rename: bool,
@@ -110,18 +113,25 @@ impl SftpInner {
         Ok(())
     }
 
+    async fn call<T>(
+        &self,
+        request: impl Future<Output = std::result::Result<T, SftpClientError>>,
+    ) -> std::result::Result<T, SftpClientError> {
+        unless_lost(&self.lost, request).await
+    }
+
     async fn stat(&self, path: String, follow_symlinks: bool) -> Result<FileAttributes> {
         self.check_open()?;
         let attrs = if follow_symlinks {
-            self.raw.stat(path).await?
+            self.call(self.raw.stat(path)).await?
         } else {
-            self.raw.lstat(path).await?
+            self.call(self.raw.lstat(path)).await?
         };
         Ok(attrs.attrs)
     }
 
     async fn extended(&self, request: &str, data: Vec<u8>) -> Result<()> {
-        match self.raw.extended(request, data).await? {
+        match self.call(self.raw.extended(request, data)).await? {
             Packet::Status(status) if status.status_code == StatusCode::Ok => Ok(()),
             Packet::Status(status) => Err(status.into()),
             _ => Err(RusshError::invalid_state(format!("Unexpected reply to {request}"))),
@@ -148,7 +158,7 @@ impl SftpInner {
         }
 
         if follow_symlinks {
-            self.raw.setstat(path, attrs).await?;
+            self.call(self.raw.setstat(path, attrs)).await?;
             return Ok(());
         }
         if !self.lsetstat {
@@ -166,7 +176,7 @@ impl SftpInner {
             data.extend(encode_string(&to));
             return self.extended(POSIX_RENAME, data).await;
         }
-        self.raw.rename(from, to).await?;
+        self.call(self.raw.rename(from, to)).await?;
         Ok(())
     }
 
@@ -174,14 +184,14 @@ impl SftpInner {
         self.check_open()?;
         let mut attrs = FileAttributes::empty();
         attrs.permissions = Some(mode);
-        match self.raw.mkdir(path.clone(), attrs).await {
+        match self.call(self.raw.mkdir(path.clone(), attrs)).await {
             Ok(_) => Ok(()),
             Err(error) => Err(self.already_exists_if_present(error.into(), path).await),
         }
     }
 
     async fn already_exists_if_present(&self, error: RusshError, path: String) -> RusshError {
-        if error.sftp_code() == Some(StatusCode::Failure as u32) && self.raw.lstat(path).await.is_ok() {
+        if error.sftp_code() == Some(StatusCode::Failure as u32) && self.call(self.raw.lstat(path)).await.is_ok() {
             return RusshError::Sftp { code: FX_FILE_ALREADY_EXISTS, message: error.to_string() };
         }
         error
@@ -191,7 +201,7 @@ impl SftpInner {
         self.check_open()?;
         // OpenSSH's sftp-server reads the two SSH_FXP_SYMLINK paths in the reverse of
         // the order the draft specifies: target first, then the link.
-        match self.raw.symlink(target, dest.clone()).await {
+        match self.call(self.raw.symlink(target, dest.clone())).await {
             Ok(_) => Ok(()),
             Err(error) => Err(self.already_exists_if_present(error.into(), dest).await),
         }
@@ -243,10 +253,12 @@ impl Session {
             let channel = session.open_channel().await?;
             channel.request_subsystem(true, "sftp").await?;
             let config = Config { request_timeout_secs: session.timeout.as_secs(), ..Config::default() };
-            let mut raw = RawSftpSession::new_with_config(channel.into_stream(), config);
-            let version = raw.init().await?;
+            let lost = CancellationToken::new();
+            let stream = WatchedStream::new(channel.into_stream(), lost.clone());
+            let mut raw = RawSftpSession::new_with_config(stream, config);
+            let version = unless_lost(&lost, raw.init()).await?;
             let limits = if version.extensions.contains_key(LIMITS) {
-                let limits = raw.limits().await?;
+                let limits = unless_lost(&lost, raw.limits()).await?;
                 SftpLimits {
                     max_open_handles: limits.max_open_handles,
                     max_packet_length: limits.max_packet_len,
@@ -266,6 +278,7 @@ impl Session {
                 inner: Arc::new(SftpInner {
                     session,
                     raw,
+                    lost,
                     closed: AtomicBool::new(false),
                     limits,
                     posix_rename: version.extensions.contains_key(POSIX_RENAME),
@@ -298,7 +311,7 @@ impl Sftp {
         let inner = self.inner.clone();
         run(async move {
             inner.check_open()?;
-            inner.raw.rmdir(path).await?;
+            inner.call(inner.raw.rmdir(path)).await?;
             Ok(())
         })
         .await
@@ -308,7 +321,7 @@ impl Sftp {
         let inner = self.inner.clone();
         run(async move {
             inner.check_open()?;
-            inner.raw.remove(path).await?;
+            inner.call(inner.raw.remove(path)).await?;
             Ok(())
         })
         .await
@@ -342,7 +355,7 @@ impl Sftp {
         let inner = self.inner.clone();
         run(async move {
             inner.check_open()?;
-            let name = inner.raw.readlink(path).await?;
+            let name = inner.call(inner.raw.readlink(path)).await?;
             name.files
                 .into_iter()
                 .next()
@@ -363,7 +376,7 @@ impl Sftp {
             inner.check_open()?;
             let mut attrs = FileAttributes::empty();
             attrs.permissions = Some(mode);
-            let handle = inner.raw.open(path, access.flags(), attrs).await?.handle;
+            let handle = inner.call(inner.raw.open(path, access.flags(), attrs)).await?.handle;
             Ok(Arc::new(File {
                 inner: Arc::new(FileInner {
                     sftp: inner,
@@ -380,7 +393,7 @@ impl Sftp {
         let inner = self.inner.clone();
         run(async move {
             inner.check_open()?;
-            let handle = inner.raw.opendir(path).await?.handle;
+            let handle = inner.call(inner.raw.opendir(path)).await?.handle;
             Ok(Arc::new(Directory {
                 inner: Arc::new(DirectoryInner {
                     sftp: inner,
@@ -421,7 +434,7 @@ impl FileInner {
 
     async fn read_at(&self, offset: u64, length: u32) -> Result<Vec<u8>> {
         self.check_open()?;
-        match self.sftp.raw.read(self.handle.as_str(), offset, length).await {
+        match self.sftp.call(self.sftp.raw.read(self.handle.as_str(), offset, length)).await {
             Ok(data) => Ok(data.data),
             Err(SftpClientError::Status(status)) if status.status_code == StatusCode::Eof => {
                 Ok(Vec::new())
@@ -432,7 +445,7 @@ impl FileInner {
 
     async fn write_at(&self, offset: u64, data: Vec<u8>) -> Result<()> {
         self.check_open()?;
-        self.sftp.raw.write(self.handle.as_str(), offset, data).await?;
+        self.sftp.call(self.sftp.raw.write(self.handle.as_str(), offset, data)).await?;
         Ok(())
     }
 }
@@ -450,7 +463,7 @@ impl File {
             return;
         }
         run(async move {
-            let _ = inner.sftp.raw.close(inner.handle.as_str()).await;
+            let _ = inner.sftp.call(inner.sftp.raw.close(inner.handle.as_str())).await;
         })
         .await
     }
@@ -459,7 +472,7 @@ impl File {
         let inner = self.inner.clone();
         run(async move {
             inner.check_open()?;
-            let attrs = inner.sftp.raw.fstat(inner.handle.as_str()).await?.attrs;
+            let attrs = inner.sftp.call(inner.sftp.raw.fstat(inner.handle.as_str())).await?.attrs;
             Ok(Attributes::from(&attrs, None, None))
         })
         .await
@@ -587,7 +600,7 @@ impl Directory {
             if inner.eof.load(Ordering::Acquire) {
                 return Ok(Vec::new());
             }
-            match inner.sftp.raw.readdir(inner.handle.as_str()).await {
+            match inner.sftp.call(inner.sftp.raw.readdir(inner.handle.as_str())).await {
                 Ok(name) => Ok(name
                     .files
                     .into_iter()
@@ -609,7 +622,7 @@ impl Directory {
             return;
         }
         run(async move {
-            let _ = inner.sftp.raw.close(inner.handle.as_str()).await;
+            let _ = inner.sftp.call(inner.sftp.raw.close(inner.handle.as_str())).await;
         })
         .await
     }
