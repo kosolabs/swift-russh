@@ -62,6 +62,24 @@ public enum SFTPError: Codable, Error, Sendable, Equatable {
   }
 }
 
+public enum ConnectionFailure: Codable, Sendable, Equatable {
+  case unknownHost
+  case refused
+  case timedOut
+  case lost
+  case other
+
+  init(_ kind: ConnectionFailureKind) {
+    switch kind {
+    case .unknownHost: self = .unknownHost
+    case .refused: self = .refused
+    case .timedOut: self = .timedOut
+    case .lost: self = .lost
+    case .other: self = .other
+    }
+  }
+}
+
 public enum SSHKeyError: Codable, Error, Sendable, Equatable {
   case unreadable
   case passphraseRequired
@@ -69,7 +87,7 @@ public enum SSHKeyError: Codable, Error, Sendable, Equatable {
 }
 
 public enum SSHError: Codable, Error, Sendable, Equatable {
-  case connectionFailed(message: String)
+  case connectionFailed(ConnectionFailure, message: String)
   case closed(message: String)
   case authenticationFailed(message: String)
   case hostKeyMismatch(expected: SSHHostKey, actual: SSHHostKey, message: String)
@@ -82,8 +100,8 @@ public enum SSHError: Codable, Error, Sendable, Equatable {
 
   init(_ error: RusshError) {
     switch error {
-    case .ConnectionFailed(let message):
-      self = .connectionFailed(message: message)
+    case .ConnectionFailed(let kind, let message):
+      self = .connectionFailed(ConnectionFailure(kind), message: message)
     case .Closed(let message):
       self = .closed(message: message)
     case .AuthenticationFailed(let message):
@@ -106,6 +124,11 @@ public enum SSHError: Codable, Error, Sendable, Equatable {
   public var isConnectionFailed: Bool {
     if case .connectionFailed = self { return true }
     return false
+  }
+
+  public var connectionFailure: ConnectionFailure? {
+    guard case .connectionFailed(let failure, _) = self else { return nil }
+    return failure
   }
 
   public var isClosed: Bool {

@@ -466,7 +466,7 @@ struct SFTPFileTests {
         await #expect {
           _ = try await file.read()
         } throws: { error in
-          (error as? SSHError)?.isConnectionFailed == true
+          (error as? SSHError)?.connectionFailure == .lost
         }
       }
 

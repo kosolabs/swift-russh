@@ -61,6 +61,10 @@ The test server is shared with swift-libssh and SSHadow; keep
 
 ## Behaviour that differs from swift-libssh
 
+- **Connection failures.** `SSHError.connectionFailed` carries a
+  `ConnectionFailure` reason (`unknownHost`, `refused`, `timedOut`, `lost` or
+  `other`), so callers can tell failures apart without parsing the message.
+  The message is human-readable detail and may change.
 - **Concurrency.** Requests on one SFTP session run concurrently instead of one
   at a time, so independent operations issued from separate tasks overlap.
 - **Dead connections.** Keepalives are sent every `timeout / 4` seconds and the

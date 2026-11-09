@@ -10,7 +10,7 @@ use tokio::net::TcpStream;
 use tokio::sync::RwLock;
 use tokio::time::timeout;
 
-use crate::error::{Result, RusshError};
+use crate::error::{ConnectionFailureKind, Result, RusshError};
 use crate::keys::PrivateKey;
 use crate::runtime::run;
 
@@ -79,7 +79,7 @@ impl SessionInner {
         let guard = self.handle.read().await;
         let handle = guard.as_ref().ok_or_else(|| RusshError::closed("SSH session is closed"))?;
         if handle.is_closed() {
-            return Err(RusshError::connection_failed("Connection lost"));
+            return Err(RusshError::connection_failed(ConnectionFailureKind::Lost, "Connection lost"));
         }
         Ok(handle.channel_open_session().await?)
     }
@@ -145,7 +145,12 @@ pub async fn connect(host: String, port: u16, timeout_secs: u64) -> Result<Arc<S
             client::connect_stream(Arc::new(config(timeout_duration)), stream, handler),
         )
         .await
-        .map_err(|_| RusshError::connection_failed(format!("Timed out connecting to {host}")))??;
+        .map_err(|_| {
+            RusshError::connection_failed(
+                ConnectionFailureKind::TimedOut,
+                format!("Timed out connecting to {host}"),
+            )
+        })??;
         Ok(Arc::new(Session {
             inner: Arc::new(SessionInner {
                 handle: RwLock::new(Some(handle)),
@@ -172,20 +177,37 @@ fn config(timeout: Duration) -> client::Config {
 async fn connect_tcp(host: &str, port: u16, timeout_duration: Duration) -> Result<TcpStream> {
     let addresses = timeout(timeout_duration, tokio::net::lookup_host((host, port)))
         .await
-        .map_err(|_| RusshError::connection_failed(format!("Timed out resolving {host}")))?
+        .map_err(|_| {
+            RusshError::connection_failed(
+                ConnectionFailureKind::TimedOut,
+                format!("Timed out resolving {host}"),
+            )
+        })?
         .map_err(|error| {
-            RusshError::connection_failed(format!("Failed to resolve hostname {host}: {error}"))
+            RusshError::connection_failed(
+                ConnectionFailureKind::UnknownHost,
+                format!("Failed to resolve hostname {host}: {error}"),
+            )
         })?;
 
-    let mut last_error = format!("No addresses found for {host}");
+    let mut last_error = RusshError::connection_failed(
+        ConnectionFailureKind::UnknownHost,
+        format!("No addresses found for {host}"),
+    );
     for address in addresses {
-        match timeout(timeout_duration, TcpStream::connect(address)).await {
+        last_error = match timeout(timeout_duration, TcpStream::connect(address)).await {
             Ok(Ok(stream)) => return Ok(stream),
-            Ok(Err(error)) => last_error = format!("Failed to connect to {address}: {error}"),
-            Err(_) => last_error = format!("Timed out connecting to {address}"),
-        }
+            Ok(Err(error)) => RusshError::connection_failed(
+                ConnectionFailureKind::of(&error),
+                format!("Failed to connect to {address}: {error}"),
+            ),
+            Err(_) => RusshError::connection_failed(
+                ConnectionFailureKind::TimedOut,
+                format!("Timed out connecting to {address}"),
+            ),
+        };
     }
-    Err(RusshError::connection_failed(last_error))
+    Err(last_error)
 }
 
 #[uniffi::export]

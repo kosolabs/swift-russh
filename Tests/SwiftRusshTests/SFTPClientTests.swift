@@ -1203,7 +1203,7 @@ struct SFTPClientTests {
       await #expect {
         _ = try await sftp.attributes(at: "/tmp")
       } throws: { error in
-        (error as? SSHError)?.isConnectionFailed == true
+        (error as? SSHError)?.connectionFailure == .lost
       }
 
       await sftp.close()
@@ -1226,7 +1226,7 @@ struct SFTPClientTests {
         await #expect {
           while try await iterator.next() != nil {}
         } throws: { error in
-          (error as? SSHError)?.isConnectionFailed == true
+          (error as? SSHError)?.connectionFailure == .lost
         }
       }
 
