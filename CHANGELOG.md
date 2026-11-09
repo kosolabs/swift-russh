@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0](https://github.com/kosolabs/swift-russh/compare/v0.3.0...v0.4.0) (2026-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* see the list above. Code that relied on typed throws must cast with `as? SSHError` or match with `catch SSHError.<case>`.
+
+### Features
+
+* make SSHError idiomatic ([#17](https://github.com/kosolabs/swift-russh/issues/17)) ([15c1488](https://github.com/kosolabs/swift-russh/commit/15c1488aba4f36ae7f3ff4cc458d621c940e38c2))
+
 ## [0.3.0](https://github.com/kosolabs/swift-russh/compare/v0.2.1...v0.3.0) (2026-11-09)
 
 
