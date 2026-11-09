@@ -1579,6 +1579,7 @@ dependencies = [
  "russh-sftp",
  "thiserror",
  "tokio",
+ "tokio-util",
  "uniffi",
 ]
 
