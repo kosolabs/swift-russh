@@ -32,6 +32,8 @@ deleting the local build, resolve with `--manifest-cache none` or clear
 ## Releasing
 
 Releases are cut by merging release-please's release PR, as in swift-libssh.
+Before 1.0, breaking changes bump the minor version rather than releasing 1.0
+(`bump-minor-pre-major` in `release-please-config.json`).
 
 1. When release-please pushes the release branch, **Pin Binary** builds the
    XCFramework, keeps the zip as an artifact named after its checksum, and
