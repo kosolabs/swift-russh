@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0](https://github.com/kosolabs/swift-russh/compare/v0.5.0...v0.6.0) (2026-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* see the list above.
+* see the list above.
+
+### Features
+
+* give exec channels stdout and stderr sequences ([#21](https://github.com/kosolabs/swift-russh/issues/21)) ([a403327](https://github.com/kosolabs/swift-russh/commit/a403327d726f653ad0283b6f3b771f7942da2c51))
+* list directories as named entries and trim SFTPAttributes ([#22](https://github.com/kosolabs/swift-russh/issues/22)) ([a78e879](https://github.com/kosolabs/swift-russh/commit/a78e879b0cbe1c4a5031875d2a69d1adb48584dc))
+
 ## [0.5.0](https://github.com/kosolabs/swift-russh/compare/v0.4.0...v0.5.0) (2026-11-09)
 
 
