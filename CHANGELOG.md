@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/kosolabs/swift-russh/compare/v0.2.0...v0.2.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* block release PRs until their binary is pinned ([#10](https://github.com/kosolabs/swift-russh/issues/10)) ([e8da10e](https://github.com/kosolabs/swift-russh/commit/e8da10ea2771a193326b3733a0b9617b64396bd1))
+
 ## [0.2.0](https://github.com/kosolabs/swift-russh/compare/v0.1.1...v0.2.0) (2026-11-09)
 
 
