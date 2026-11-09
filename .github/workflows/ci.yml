@@ -10,21 +10,23 @@ jobs:
   functional-tests:
     name: Functional Tests
     runs-on: macos-latest
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v7
 
-    - name: Check a release PR is pinned to its own binary
+    - name: Wait for a release PR's binary to be pinned
       if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'release-please--')
       env:
+        GH_TOKEN: ${{ github.token }}
         TITLE: ${{ github.event.pull_request.title }}
-      run: |
-        version="${TITLE##* }"
-        if ! grep -q "releases/download/v$version/CRusshFFI.xcframework.zip" Package.swift; then
-          echo "::error::Package.swift is not pinned to the v$version binary yet. Pin Binary commits the pin when its build finishes, and CI runs again then."
-          exit 1
-        fi
+        PR: ${{ github.event.pull_request.number }}
+        SHA: ${{ github.event.pull_request.head.sha }}
+      run: .github/scripts/wait-for-release-pin.sh
 
     - name: Install the Rust toolchain
       working-directory: rust
