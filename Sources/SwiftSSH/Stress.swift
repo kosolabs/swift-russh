@@ -53,7 +53,7 @@ struct Stress: AsyncParsableCommand {
   var remoteDir: String = "/tmp/swift-russh-stress"
 
   @Option(help: "Transfer buffer size")
-  var bufferSize: UInt64 = SFTPLimits.defaultBufferSize
+  var bufferSize: Int = SFTPLimits.defaultBufferSize
 
   @Option(
     help: """
@@ -103,7 +103,7 @@ struct Stress: AsyncParsableCommand {
     print(
       """
       Topology \(topology.rawValue), \(workers) workers x \(iterations) iterations, \
-      payloads \(sizeMin)-\(sizeMax), buffer \(ByteSize.format(bufferSize))
+      payloads \(sizeMin)-\(sizeMax), buffer \(ByteSize.format(UInt64(bufferSize)))
       """
     )
     print("Local scratch \(localDir.path), remote scratch \(remoteDir)")
