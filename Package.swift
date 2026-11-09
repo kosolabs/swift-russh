@@ -14,8 +14,8 @@ let ffi: Target =
   )
   : .binaryTarget(
     name: "CRusshFFI",
-    url: "https://github.com/kosolabs/swift-russh/releases/download/v0.1.1/CRusshFFI.xcframework.zip",
-    checksum: "220a2e6adc18757cbf47e2ac22bf9968b6e76fb65b49e9c2891d0e4431e06adf"
+    url: "https://github.com/kosolabs/swift-russh/releases/download/v0.2.1/CRusshFFI.xcframework.zip",
+    checksum: "9f2c4a9b89e0640df93da05cc8cfca624365230a2ccc974478d2c079d245bd86"
   )
 
 let package = Package(
