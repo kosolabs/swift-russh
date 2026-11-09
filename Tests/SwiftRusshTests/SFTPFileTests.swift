@@ -190,7 +190,7 @@ struct SFTPFileTests {
         try await ssh.execute("dd if=/dev/urandom of=\(srcPath) bs=1M count=1")
         let expected = try await ssh.md5(ofFile: srcPath)
 
-        let digests = try await ssh.withSftp { sftp in
+        let digests = try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: srcPath, access: .readOnly) { file in
             let stream = file.stream()
             return try await withThrowingTaskGroup(of: String.self) { group in
