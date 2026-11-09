@@ -48,11 +48,11 @@ struct SFTPConcurrencyTests {
     try await withAuthenticatedClient { ssh in
       try await ssh.execute("dd if=/dev/urandom of=/tmp/drain.dat bs=1M count=1")
 
-      let expected = try await ssh.withSftp { sftp in
+      let expected = try await ssh.withSFTP { sftp in
         try await sftp.attributes(at: "/tmp/drain.dat").size!
       }
 
-      let actual = try await ssh.withSftp { sftp in
+      let actual = try await ssh.withSFTP { sftp in
         try await sftp.withFile(at: "/tmp/drain.dat", access: .readOnly) { file in
           for try await chunk in file.stream() {
             // Returning here causes stream to cancel

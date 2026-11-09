@@ -10,7 +10,7 @@ struct SFTPFileTests {
         let path = "/tmp/stat-file-test.dat"
         try await ssh.execute("dd if=/dev/urandom of=\(path) bs=1024 count=1")
 
-        let attrs = try await ssh.withSftp { sftp in
+        let attrs = try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: path, access: .readOnly) { file in
             try await file.attributes()
           }
@@ -30,7 +30,7 @@ struct SFTPFileTests {
         try await ssh.execute("dd if=/dev/urandom of=\(srcPath) bs=1024 count=1")
         let expected = try await ssh.md5(ofFile: srcPath)
 
-        let actual = try await ssh.withSftp { sftp in
+        let actual = try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: srcPath, access: .readOnly) { file in
             try await file.read(0..<1024).md5()
           }
@@ -50,7 +50,7 @@ struct SFTPFileTests {
           ofFile: srcPath, offset: range.lowerBound,
           length: range.upperBound - range.lowerBound)
 
-        let actual = try await ssh.withSftp { sftp in
+        let actual = try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: srcPath, access: .readOnly) { file in
             try await file.read(range).md5()
           }
@@ -67,7 +67,7 @@ struct SFTPFileTests {
         try await ssh.execute("dd if=/dev/urandom of=\(srcPath) bs=1024 count=1")
         let expected = try await ssh.md5(ofFile: srcPath)
 
-        let actual = try await ssh.withSftp { sftp in
+        let actual = try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: srcPath, access: .readOnly) { file in
             try await file.read().md5()
           }
@@ -86,7 +86,7 @@ struct SFTPFileTests {
         try await ssh.execute("dd if=/dev/urandom of=\(srcPath) bs=1M count=1")
         let expected = try await ssh.md5(ofFile: srcPath, offset: offset, length: length)
 
-        let actual = try await ssh.withSftp { sftp in
+        let actual = try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: srcPath, access: .readOnly) { file in
             try await file.read(offset..<offset + length).md5()
           }
@@ -103,7 +103,7 @@ struct SFTPFileTests {
         try await ssh.execute("dd if=/dev/urandom of=\(srcPath) bs=1M count=1")
         let expected = try await ssh.md5(ofFile: srcPath)
 
-        let actual = try await ssh.withSftp { sftp in
+        let actual = try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: srcPath, access: .readOnly) { file in
             try await file.read().md5()
           }
@@ -116,7 +116,7 @@ struct SFTPFileTests {
     @Test func readMissingFileThrowsNoSuchFile() async throws {
       await #expect {
         try await withAuthenticatedClient { ssh in
-          try await ssh.withSftp { sftp in
+          try await ssh.withSFTP { sftp in
             try await sftp.withFile(at: "/tmp/nonexistent.dat", access: .readOnly) {
               file in
               try await file.read()
@@ -135,7 +135,7 @@ struct SFTPFileTests {
           try await ssh.execute("touch \(srcPath)")
           try await ssh.execute("chmod 000 \(srcPath)")
 
-          try await ssh.withSftp { sftp in
+          try await ssh.withSFTP { sftp in
             try await sftp.withFile(at: srcPath, access: .readOnly) { file in
               for try await _ in file.stream(..<1024) {}
             }
@@ -149,7 +149,7 @@ struct SFTPFileTests {
     @Test func readDirectoryThrowsFailed() async throws {
       await #expect {
         try await withAuthenticatedClient { ssh in
-          try await ssh.withSftp { sftp in
+          try await ssh.withSFTP { sftp in
             try await sftp.withFile(at: "/tmp", access: .readOnly) { file in
               for try await _ in file.stream(..<1024) {}
             }
@@ -169,7 +169,7 @@ struct SFTPFileTests {
         try await ssh.execute("dd if=/dev/urandom of=\(srcPath) bs=1024 count=1")
         let expected = try await ssh.md5(ofFile: srcPath)
 
-        let actual = try await ssh.withSftp { sftp in
+        let actual = try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: srcPath, access: .readOnly) { file in
             var result = Data()
             for try await data in file.stream(0..<1024) {
@@ -193,7 +193,7 @@ struct SFTPFileTests {
           ofFile: srcPath, offset: range.lowerBound,
           length: range.upperBound - range.lowerBound)
 
-        let actual = try await ssh.withSftp { sftp in
+        let actual = try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: srcPath, access: .readOnly) { file in
             var result = Data()
             for try await data in file.stream(range) {
@@ -214,7 +214,7 @@ struct SFTPFileTests {
         try await ssh.execute("dd if=/dev/urandom of=\(srcPath) bs=1024 count=1")
         let expected = try await ssh.md5(ofFile: srcPath)
 
-        let actual = try await ssh.withSftp { sftp in
+        let actual = try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: srcPath, access: .readOnly) { file in
             var result = Data()
             for try await data in file.stream(..<1024) {
@@ -237,7 +237,7 @@ struct SFTPFileTests {
         try await ssh.execute("dd if=/dev/urandom of=\(srcPath) bs=1M count=1")
         let expected = try await ssh.md5(ofFile: srcPath, offset: offset, length: length)
 
-        let actual = try await ssh.withSftp { sftp in
+        let actual = try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: srcPath, access: .readOnly) { file in
             var result = Data()
             for try await data in file.stream(offset..<offset + length) {
@@ -258,7 +258,7 @@ struct SFTPFileTests {
         try await ssh.execute("dd if=/dev/urandom of=\(srcPath) bs=1M count=1")
         let expected = try await ssh.md5(ofFile: srcPath)
 
-        let actual = try await ssh.withSftp { sftp in
+        let actual = try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: srcPath, access: .readOnly) { file in
             var result = Data()
             for try await data in file.stream(..<1_048_576) {
@@ -275,7 +275,7 @@ struct SFTPFileTests {
     @Test func streamMissingFileThrowsNoSuchFile() async throws {
       await #expect {
         try await withAuthenticatedClient { ssh in
-          try await ssh.withSftp { sftp in
+          try await ssh.withSFTP { sftp in
             try await sftp.withFile(at: "/tmp/nonexistent.dat", access: .readOnly) {
               file in
               for try await _ in file.stream(..<1024) {}
@@ -294,7 +294,7 @@ struct SFTPFileTests {
         let destPath = "/tmp/write-default-mode.dat"
         try await ssh.execute("rm -f \(destPath)")
 
-        let attrs = try await ssh.withSftp { sftp in
+        let attrs = try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: destPath, access: .writeOnly, options: [.create, .truncate]) {
             file in
             try await file.write(contentsOf: Data("hello".utf8), at: 0)
@@ -315,7 +315,7 @@ struct SFTPFileTests {
           Data((0..<1024).map { _ in UInt8.random(in: .min ... .max) })
         let expected = data.md5()
 
-        try await ssh.withSftp { sftp in
+        try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: destPath, access: .writeOnly, options: [.create, .truncate]) {
             file in
             try await file.write(contentsOf: data, at: 0)
@@ -336,7 +336,7 @@ struct SFTPFileTests {
           Data((0..<1_048_576).map { _ in UInt8.random(in: .min ... .max) })
         let expected = data.md5()
 
-        try await ssh.withSftp { sftp in
+        try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: destPath, access: .writeOnly, options: [.create, .truncate]) {
             file in
             try await file.write(contentsOf: data, at: 0)
@@ -353,13 +353,13 @@ struct SFTPFileTests {
       try await withAuthenticatedClient { ssh in
         let destPath = "/tmp/write-oversized-test.dat"
 
-        let expected = try await ssh.withSftp { sftp -> String in
+        let expected = try await ssh.withSFTP { sftp -> String in
           let size = Int(sftp.limits.maxWriteLength) * 4
           let data = Data((0..<size).map { _ in UInt8.random(in: .min ... .max) })
 
           try await sftp.withFile(at: destPath, access: .writeOnly, options: [.create, .truncate]) {
             file in
-            try await file.withAsyncWriter { writer in
+            try await file.withWriter { writer in
               try await writer.write(contentsOf: data)
             }
           }
@@ -377,7 +377,7 @@ struct SFTPFileTests {
       try await withAuthenticatedClient { ssh in
         let destPath = "/tmp/write-slice-test.dat"
 
-        let expected = try await ssh.withSftp { sftp -> String in
+        let expected = try await ssh.withSFTP { sftp -> String in
           let size = Int(sftp.limits.maxWriteLength) * 4
           let padding = 1024
 
@@ -389,7 +389,7 @@ struct SFTPFileTests {
 
           try await sftp.withFile(at: destPath, access: .writeOnly, options: [.create, .truncate]) {
             file in
-            try await file.withAsyncWriter { writer in
+            try await file.withWriter { writer in
               try await writer.write(contentsOf: slice)
             }
           }
@@ -409,7 +409,7 @@ struct SFTPFileTests {
       try await withAuthenticatedClient { ssh in
         let path = "/tmp/open-no-create-\(UUID().uuidString).dat"
 
-        try await ssh.withSftp { sftp in
+        try await ssh.withSFTP { sftp in
           await #expect {
             try await sftp.withFile(at: path, access: .writeOnly) { _ in }
           } throws: { error in
@@ -424,7 +424,7 @@ struct SFTPFileTests {
         let path = "/tmp/open-no-truncate.txt"
         try await ssh.execute("printf 0123456789 > \(path)")
 
-        try await ssh.withSftp { sftp in
+        try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: path, access: .writeOnly) { file in
             try await file.write(contentsOf: Data("ab".utf8), at: 0)
           }
@@ -439,7 +439,7 @@ struct SFTPFileTests {
         let path = "/tmp/open-append.txt"
         try await ssh.execute("printf abc > \(path)")
 
-        try await ssh.withSftp { sftp in
+        try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: path, access: .writeOnly, options: .append) { file in
             try await file.write(contentsOf: Data("def".utf8), at: 0)
           }
@@ -454,7 +454,7 @@ struct SFTPFileTests {
         let path = "/tmp/open-exclusive.txt"
         try await ssh.execute("touch \(path)")
 
-        try await ssh.withSftp { sftp in
+        try await ssh.withSFTP { sftp in
           await #expect {
             try await sftp.withFile(
               at: path, access: .writeOnly, options: [.create, .exclusiveCreate]
@@ -470,7 +470,7 @@ struct SFTPFileTests {
       try await withAuthenticatedClient { ssh in
         let path = "/tmp/open-exclusive-\(UUID().uuidString).txt"
 
-        try await ssh.withSftp { sftp in
+        try await ssh.withSFTP { sftp in
           try await sftp.withFile(
             at: path, access: .writeOnly, options: [.create, .exclusiveCreate]
           ) { file in
@@ -489,7 +489,7 @@ struct SFTPFileTests {
       try await withAuthenticatedClient { ssh in
         let path = "/tmp/positional-write.txt"
 
-        try await ssh.withSftp { sftp in
+        try await ssh.withSFTP { sftp in
           try await sftp.withFile(
             at: path, access: .writeOnly, options: [.create, .truncate]
           ) { file in
@@ -507,7 +507,7 @@ struct SFTPFileTests {
         let path = "/tmp/positional-ranges.txt"
         try await ssh.execute("printf 0123456789 > \(path)")
 
-        let reads = try await ssh.withSftp { sftp in
+        let reads = try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: path, access: .readOnly) { file in
             try await [file.read(), file.read(4...), file.read(..<3), file.read(2...4)]
           }
@@ -528,7 +528,7 @@ struct SFTPFileTests {
         let expectedFirst = try await ssh.md5(ofFile: path, offset: 0, length: half)
         let expectedSecond = try await ssh.md5(ofFile: path, offset: half, length: half)
 
-        let (first, second) = try await ssh.withSftp { sftp in
+        let (first, second) = try await ssh.withSFTP { sftp in
           try await sftp.withFile(at: path, access: .readOnly) { file in
             async let first = file.read(..<half, bufferSize: 4096)
             async let second = file.read(half..<2 * half, bufferSize: 4096)
@@ -554,7 +554,7 @@ struct SFTPFileTests {
       let expected1 = try await ssh.md5(ofFile: path1)
       let expected2 = try await ssh.md5(ofFile: path2)
 
-      try await ssh.withSftp { sftp in
+      try await ssh.withSFTP { sftp in
         async let md5_1 = sftp.withFile(at: path1, access: .readOnly) { file in
           try await file.read().md5()
         }

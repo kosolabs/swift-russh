@@ -27,7 +27,7 @@ struct CancellationTests {
       let path = "/tmp/cancel-stream.dat"
       try await ssh.execute("dd if=/dev/urandom of=\(path) bs=1M count=1")
 
-      try await ssh.withSftp { sftp in
+      try await ssh.withSFTP { sftp in
         let task = Task {
           try await sftp.withFile(at: path, access: .readOnly) { file in
             for try await _ in file.stream(bufferSize: 1024) {
@@ -47,7 +47,7 @@ struct CancellationTests {
       try await ssh.execute(
         "rm -rf \(path) && mkdir \(path) && touch \(path)/a \(path)/b \(path)/c")
 
-      try await ssh.withSftp { sftp in
+      try await ssh.withSFTP { sftp in
         let task = Task {
           try await sftp.withDirectory(at: path) { directory in
             for try await _ in directory {
@@ -69,7 +69,7 @@ struct CancellationTests {
       defer { try? FileManager.default.removeItem(at: destination) }
       try await ssh.execute("dd if=/dev/urandom of=\(path) bs=1M count=1")
 
-      try await ssh.withSftp { sftp in
+      try await ssh.withSFTP { sftp in
         let task = Task {
           try await sftp.download(from: path, to: destination, bufferSize: 1024) { _ in
             cancelCurrentTask()
@@ -88,7 +88,7 @@ struct CancellationTests {
       defer { try? FileManager.default.removeItem(at: source) }
       try Data(count: 1_048_576).write(to: source)
 
-      try await ssh.withSftp { sftp in
+      try await ssh.withSFTP { sftp in
         let task = Task {
           try await sftp.upload(from: source, to: "/tmp/cancel-upload.dat", bufferSize: 1024) {
             _ in
