@@ -156,6 +156,29 @@ struct SFTPClientTests {
       }
     }
 
+    @Test(
+      arguments: zip(
+        [Date(timeIntervalSince1970: -86_400), Date.distantFuture],
+        [Date(timeIntervalSince1970: 0), Date(timeIntervalSince1970: TimeInterval(UInt32.max))]
+      ))
+    func setTimesOutsideProtocolRangeClamps(target: Date, expected: Date) async throws {
+      try await withAuthenticatedClient { ssh in
+        let path = "/tmp/sftp-setattr-clamp-\(Int64(target.timeIntervalSince1970)).txt"
+        try await ssh.execute("touch \(path)")
+
+        try await ssh.withSftp { sftp in
+          try await sftp.setAttributes(at: path, accessTime: target, modifyTime: target)
+        }
+
+        let after = try await ssh.withSftp { sftp in
+          try await sftp.attributes(at: path)
+        }
+
+        #expect(after.accessTime == expected)
+        #expect(after.modifyTime == expected)
+      }
+    }
+
     @Test func setSizeSucceeds() async throws {
       try await withAuthenticatedClient { ssh in
         let path = "/tmp/sftp-setattr-size.dat"

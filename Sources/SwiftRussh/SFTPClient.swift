@@ -87,8 +87,8 @@ public struct SFTPClient: Sendable {
       uid: uid,
       gid: gid,
       permissions: permissions.map(UInt32.init),
-      accessTime: accessTime.map { UInt32($0.timeIntervalSince1970) },
-      modifyTime: modifyTime.map { UInt32($0.timeIntervalSince1970) }
+      accessTime: accessTime?.sftpTimestamp,
+      modifyTime: modifyTime?.sftpTimestamp
     )
     try await bridge {
       try await sftp.setAttributes(path: path, followSymlinks: followSymlinks, changes: changes)
@@ -146,5 +146,14 @@ public struct SFTPClient: Sendable {
     try await withSftpFile(at: remotePath, accessType: .writeOnly, mode: mode) { file in
       try await file.upload(from: localURL, bufferSize: bufferSize, progress: progress)
     }
+  }
+}
+
+extension Date {
+  fileprivate var sftpTimestamp: UInt32 {
+    let seconds = timeIntervalSince1970.rounded(.down)
+    guard seconds > 0 else { return 0 }
+    guard seconds < Double(UInt32.max) else { return .max }
+    return UInt32(seconds)
   }
 }
