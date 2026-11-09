@@ -91,7 +91,7 @@ struct SFTPConcurrencyTests {
 
           group.addTask {
             try? await sftp.withFile(at: remoteSource, access: .readOnly) { file in
-              for try await _ in file.stream(..<window, bufferSize: window) {}
+              for try await _ in file.stream(..<UInt64(window), bufferSize: window) {}
             }
           }
         }

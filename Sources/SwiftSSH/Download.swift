@@ -16,7 +16,7 @@ struct Download: AsyncParsableCommand {
   var dst: String
 
   @Option(help: "Buffer size")
-  var bufferSize: UInt64 = SFTPLimits.defaultBufferSize
+  var bufferSize: Int = SFTPLimits.defaultBufferSize
 
   func run() async throws {
     try await sshConfig.withConnection { ssh, sftp in

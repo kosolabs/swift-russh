@@ -132,7 +132,7 @@ public struct SFTPClient: Sendable {
 
   public func download(
     from remotePath: String, to localURL: URL,
-    bufferSize: UInt64 = SFTPLimits.defaultBufferSize,
+    bufferSize: Int = SFTPLimits.defaultBufferSize,
     progress: (@Sendable (UInt64) -> Void)? = nil
   ) async throws {
     try await withFile(at: remotePath, access: .readOnly) { file in
@@ -142,7 +142,7 @@ public struct SFTPClient: Sendable {
 
   public func upload(
     from localURL: URL, to remotePath: String, permissions: mode_t = 0o666,
-    bufferSize: UInt64 = SFTPLimits.defaultBufferSize,
+    bufferSize: Int = SFTPLimits.defaultBufferSize,
     progress: (@Sendable (UInt64) -> Void)? = nil
   ) async throws {
     try await withFile(
