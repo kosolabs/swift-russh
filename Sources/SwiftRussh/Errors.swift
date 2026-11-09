@@ -1,18 +1,6 @@
 import Foundation
 import RusshFFI
 
-public enum StreamType: Int32, Sendable {
-  case stdout = 0
-  case stderr = 1
-
-  var kind: StreamKind {
-    switch self {
-    case .stdout: .stdout
-    case .stderr: .stderr
-    }
-  }
-}
-
 public enum SSHError: Error, Sendable {
   case connectionFailed(ConnectionFailure, message: String)
   case closed(message: String)

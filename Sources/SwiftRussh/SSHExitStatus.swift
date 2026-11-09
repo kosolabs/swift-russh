@@ -1,13 +1,17 @@
 import RusshFFI
 
-public struct SSHExitStatus: Codable, Sendable {
-  public let code: UInt8?
-  public let signal: String?
-  public let coreDumped: Bool
+public enum SSHExitStatus: Hashable, Sendable {
+  case exited(code: Int32)
+  case signaled(signal: String, coreDumped: Bool)
+  case unknown
 
   init(_ status: ExitStatus) {
-    code = status.code.map { UInt8(truncatingIfNeeded: $0) }
-    signal = status.signal
-    coreDumped = status.coreDumped
+    if let code = status.code {
+      self = .exited(code: Int32(bitPattern: code))
+    } else if let signal = status.signal {
+      self = .signaled(signal: signal, coreDumped: status.coreDumped)
+    } else {
+      self = .unknown
+    }
   }
 }

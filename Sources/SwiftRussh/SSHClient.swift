@@ -148,15 +148,15 @@ public struct SSHClient: Sendable {
     try await execute(command) { channel in
       try await CommandResult(
         status: channel.exitStatus(),
-        stdout: channel.read(from: .stdout),
-        stderr: channel.read(from: .stderr)
+        stdout: channel.stdout.collect(),
+        stderr: channel.stderr.collect()
       )
     }
   }
 
   public func execute<T: Sendable>(
     _ command: String,
-    perform body: @Sendable (SSHSessionChannel) async throws -> T
+    perform body: @Sendable (SSHChannel) async throws -> T
   ) async throws -> T {
     let channel = try await openChannel()
     do {
@@ -170,7 +170,7 @@ public struct SSHClient: Sendable {
     }
   }
 
-  private func openChannel() async throws(SSHError) -> SSHSessionChannel {
-    SSHSessionChannel(try await bridge { try await session.openChannel() })
+  private func openChannel() async throws(SSHError) -> SSHChannel {
+    SSHChannel(try await bridge { try await session.openChannel() })
   }
 }

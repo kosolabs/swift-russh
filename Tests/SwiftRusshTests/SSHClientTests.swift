@@ -39,7 +39,7 @@ struct SSHClientTests {
       try await withAuthenticatedClient { ssh in
         let proc = try await ssh.execute("blah")
 
-        #expect(proc.status.code == 127)
+        #expect(proc.status == .exited(code: 127))
       }
     }
 
@@ -52,7 +52,23 @@ struct SSHClientTests {
           .trimmingCharacters(in: .whitespacesAndNewlines)
 
         #expect(stderr == "custom error")
-        #expect(proc.status.code == 0)
+        #expect(proc.status == .exited(code: 0))
+      }
+    }
+
+    @Test func channelStreamsStdoutAndStderrSeparately() async throws {
+      try await withAuthenticatedClient { ssh in
+        let (stdout, stderr, status) = try await ssh.execute("echo out; echo err >&2") { channel in
+          var stdout = Data()
+          for try await chunk in channel.stdout { stdout.append(chunk) }
+          var stderr = Data()
+          for try await chunk in channel.stderr { stderr.append(chunk) }
+          return (stdout, stderr, try await channel.exitStatus())
+        }
+
+        #expect(stdout == Data("out\n".utf8))
+        #expect(stderr == Data("err\n".utf8))
+        #expect(status == .exited(code: 0))
       }
     }
 
@@ -60,8 +76,7 @@ struct SSHClientTests {
       try await withAuthenticatedClient { ssh in
         let proc = try await ssh.execute("kill -9 $$")
 
-        #expect(proc.status.code == nil)
-        #expect(proc.status.signal == "KILL")
+        #expect(proc.status == .signaled(signal: "KILL", coreDumped: false))
       }
     }
 
@@ -74,7 +89,7 @@ struct SSHClientTests {
 
         let expected = Array(repeating: "Hello world\n", count: 500).joined()
         #expect(actual == expected)
-        #expect(proc.status.code == 0)
+        #expect(proc.status == .exited(code: 0))
       }
     }
 
@@ -84,7 +99,7 @@ struct SSHClientTests {
         let actual = try await ssh.execute(
           "dd if=/dev/urandom bs=\(expected) count=1 of=/dev/stdout"
         ) { channel in
-          for try await data: Data in channel.stream(from: .stdout) {
+          for try await data in channel.stdout {
             // Returning here causes stream to cancel
             return data
           }
