@@ -27,11 +27,8 @@ public struct SSHChannelData: Sendable, AsyncSequence {
       self.length = length
     }
 
-    public func next() async throws(SSHError) -> Data? {
-      if Task.isCancelled {
-        return nil
-      }
-
+    public func next() async throws -> Data? {
+      try Task.checkCancellation()
       return try await channel.read(length: length, stream: stream)
     }
   }
@@ -63,7 +60,7 @@ public struct SSHSessionChannel: Sendable {
     return data.isEmpty ? nil : data
   }
 
-  public func read(from: StreamType) async throws(SSHError) -> Data {
+  public func read(from: StreamType) async throws -> Data {
     var output = Data()
     for try await data in stream(from: from) {
       output.append(data)

@@ -79,4 +79,6 @@ The test server is shared with swift-libssh and SSHadow; keep
   russh's default order puts ChaCha20 first, and it is several times slower.
 - **Cancellation.** Cancelling a Swift task does not interrupt a call that is
   already running in Rust. The call finishes or times out, as libssh's blocking
-  calls do.
+  calls do. Channel and file streams, directory iteration, `download` and
+  `upload` check for cancellation between chunks and throw `CancellationError`,
+  where swift-libssh ended the stream early and reported success.

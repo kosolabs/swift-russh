@@ -32,8 +32,9 @@ public struct SFTPDirectory: Sendable, AsyncSequence {
       self.directory = directory
     }
 
-    public func next() async throws(SSHError) -> SFTPAttributes? {
-      try await directory.read()
+    public func next() async throws -> SFTPAttributes? {
+      try Task.checkCancellation()
+      return try await directory.read()
     }
   }
 

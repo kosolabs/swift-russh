@@ -144,30 +144,13 @@ public struct SSHClient: Sendable {
   }
 
   @discardableResult
-  public func execute(_ command: String) async throws(SSHError) -> CommandResult {
-    return try await execute(command) {
-      channel throws(SSHError) in
-      return try await CommandResult(
+  public func execute(_ command: String) async throws -> CommandResult {
+    try await execute(command) { channel in
+      try await CommandResult(
         status: channel.exitStatus(),
         stdout: channel.read(from: .stdout),
         stderr: channel.read(from: .stderr)
       )
-    }
-  }
-
-  func execute<T: Sendable>(
-    _ command: String,
-    perform body: @Sendable (SSHSessionChannel) async throws(SSHError) -> T
-  ) async throws(SSHError) -> T {
-    let channel = try await openChannel()
-    do {
-      try await channel.execute(command: command)
-      let result = try await body(channel)
-      await channel.close()
-      return result
-    } catch {
-      await channel.close()
-      throw error
     }
   }
 

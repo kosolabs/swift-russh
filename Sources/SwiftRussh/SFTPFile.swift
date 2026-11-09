@@ -36,10 +36,8 @@ public class SFTPReader: AsyncSequence {
       self.bufferSize = bufferSize
     }
 
-    public func next() async throws(SSHError) -> Data? {
-      if Task.isCancelled {
-        return nil
-      }
+    public func next() async throws -> Data? {
+      try Task.checkCancellation()
 
       if count == 0 {
         try await file.seek(offset: offset)
@@ -236,6 +234,7 @@ public struct SFTPFile: Sendable {
     var count: UInt64 = 0
     try await withAsyncWriter { writer in
       while let data = try fp.read(upToCount: bufferSize) {
+        try Task.checkCancellation()
         try await writer.write(data: data)
         count += UInt64(data.count)
         progress?(count)
