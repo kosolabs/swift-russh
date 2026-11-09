@@ -12,7 +12,7 @@ struct CancellationTests {
     try await withAuthenticatedClient { ssh in
       let task = Task {
         try await ssh.execute("dd if=/dev/urandom bs=1000000 count=1 of=/dev/stdout") { channel in
-          for try await _ in channel.stream(from: .stdout) {
+          for try await _ in channel.stdout {
             cancelCurrentTask()
           }
         }

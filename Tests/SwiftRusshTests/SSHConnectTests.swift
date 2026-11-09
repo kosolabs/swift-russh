@@ -96,7 +96,7 @@ struct SSHConnectTests {
 
       let expected = user
       #expect(actual == expected)
-      #expect(proc.status.code == 0)
+      #expect(proc.status == .exited(code: 0))
     }
   }
 
@@ -112,7 +112,7 @@ struct SSHConnectTests {
 
       let expected = user
       #expect(actual == expected)
-      #expect(proc.status.code == 0)
+      #expect(proc.status == .exited(code: 0))
     }
   }
 
@@ -129,7 +129,7 @@ struct SSHConnectTests {
 
       let expected = user
       #expect(actual == expected)
-      #expect(proc.status.code == 0)
+      #expect(proc.status == .exited(code: 0))
     }
   }
 
@@ -145,7 +145,7 @@ struct SSHConnectTests {
 
       let expected = user
       #expect(actual == expected)
-      #expect(proc.status.code == 0)
+      #expect(proc.status == .exited(code: 0))
     }
   }
 
@@ -156,7 +156,7 @@ struct SSHConnectTests {
         host: host, port: port, user: user, auth: .privateKey(key)
       ) { ssh in
         let proc = try await ssh.execute("true")
-        #expect(proc.status.code == 0)
+        #expect(proc.status == .exited(code: 0))
       }
     }
   }
@@ -173,7 +173,7 @@ struct SSHConnectTests {
 
       let expected = user
       #expect(actual == expected)
-      #expect(proc.status.code == 0)
+      #expect(proc.status == .exited(code: 0))
     }
   }
 
@@ -282,7 +282,7 @@ struct SSHConnectTests {
       expectedHostKey: serverHostKey
     ) { ssh in
       let proc = try await ssh.execute("true")
-      #expect(proc.status.code == 0)
+      #expect(proc.status == .exited(code: 0))
     }
   }
 
@@ -300,7 +300,8 @@ struct SSHConnectTests {
       guard case .hostKeyMismatch(expected, actual, let message)? = error as? SSHError else {
         return false
       }
-      return message == "Server host key \(actual.fingerprint) does not match \(expected.fingerprint)"
+      return message
+        == "Server host key \(actual.fingerprint) does not match \(expected.fingerprint)"
     }
   }
 
