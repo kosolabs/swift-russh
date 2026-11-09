@@ -73,12 +73,16 @@ The test server is shared with swift-libssh and SSHadow; keep
   `catch SSHError.connectionFailed(.refused, _)`. The message is
   human-readable detail, may change, and is the error's `localizedDescription`.
   Local file failures in `download` and `upload` throw Foundation's own errors.
+- **Host keys.** `connect` takes a required `hostKey:` validator:
+  `.expecting(key)` for a key stored earlier (for example from
+  `SSHClient.hostKey(host:)`), a closure for your own policy, or
+  `.acceptingAny`. swift-libssh accepted any key unless you passed one.
 - **Concurrency.** Requests on one SFTP session run concurrently instead of one
   at a time, so independent operations issued from separate tasks overlap.
 - **Dead connections.** Keepalives are sent every `timeout / 4` seconds and the
   session closes after three go unanswered, so a stalled server is detected
   within about `timeout` even when the client is idle. SFTP requests also time
-  out after `timeout`.
+  out after `timeout`, rounded up to whole seconds.
 - **Ciphers.** AES-GCM is preferred over ChaCha20-Poly1305, as libssh does.
   russh's default order puts ChaCha20 first, and it is several times slower.
 - **Cancellation.** Cancelling a Swift task does not interrupt a call that is

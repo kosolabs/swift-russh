@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import Synchronization
 import Testing
 
 @testable import SwiftRussh
@@ -65,7 +66,8 @@ private var serverHostKey: SSHHostKey {
 
 func client() async throws -> SSHClient {
   return try await SSHClient.connect(
-    host: host, port: port, user: user, auth: .privateKey(contentsOf: privateKey))
+    host: host, port: port, user: user, auth: .privateKey(contentsOf: privateKey),
+    hostKey: .expecting(serverHostKey))
 }
 
 @discardableResult
@@ -87,7 +89,8 @@ struct SSHConnectTests {
   @Test(.enabled(if: password != nil, passwordComment))
   func passwordAuthenticationSucceeds() async throws {
     try await SSHClient.withAuthenticatedClient(
-      host: host, port: port, user: user, auth: .password(#require(password))
+      host: host, port: port, user: user, auth: .password(#require(password)),
+      hostKey: .expecting(serverHostKey)
     ) { ssh in
       let proc = try await ssh.execute("whoami")
       let actual = try proc.stdout
@@ -102,7 +105,8 @@ struct SSHConnectTests {
 
   @Test func privateKeyFileAuthenticationSucceeds() async throws {
     try await SSHClient.withAuthenticatedClient(
-      host: host, port: port, user: user, auth: .privateKey(contentsOf: privateKey)
+      host: host, port: port, user: user, auth: .privateKey(contentsOf: privateKey),
+      hostKey: .expecting(serverHostKey)
     ) { ssh in
 
       let proc = try await ssh.execute("whoami")
@@ -119,7 +123,8 @@ struct SSHConnectTests {
   @Test func base64PrivateKeyAuthenticationSucceeds() async throws {
     let privateKey = try String(contentsOf: privateKey, encoding: .utf8)
     try await SSHClient.withAuthenticatedClient(
-      host: host, port: port, user: user, auth: .privateKey(contents: privateKey)
+      host: host, port: port, user: user, auth: .privateKey(contents: privateKey),
+      hostKey: .expecting(serverHostKey)
     ) { ssh in
 
       let proc = try await ssh.execute("whoami")
@@ -136,7 +141,8 @@ struct SSHConnectTests {
   @Test func importedPrivateKeyAuthenticationSucceeds() async throws {
     let key = try SSHPrivateKey(contentsOf: privateKey)
     try await SSHClient.withAuthenticatedClient(
-      host: host, port: port, user: user, auth: .privateKey(key)
+      host: host, port: port, user: user, auth: .privateKey(key),
+      hostKey: .expecting(serverHostKey)
     ) { ssh in
       let proc = try await ssh.execute("whoami")
       let actual = try proc.stdout
@@ -153,7 +159,8 @@ struct SSHConnectTests {
     let key = try SSHPrivateKey(contentsOf: privateKey)
     for _ in 0..<3 {
       try await SSHClient.withAuthenticatedClient(
-        host: host, port: port, user: user, auth: .privateKey(key)
+        host: host, port: port, user: user, auth: .privateKey(key),
+        hostKey: .expecting(serverHostKey)
       ) { ssh in
         let proc = try await ssh.execute("true")
         #expect(proc.status == .exited(code: 0))
@@ -164,7 +171,8 @@ struct SSHConnectTests {
   @Test func encryptedPrivateKeyAuthenticationSucceeds() async throws {
     try await SSHClient.withAuthenticatedClient(
       host: host, port: port, user: user,
-      auth: .privateKey(contentsOf: encryptedPrivateKey, passphrase: encryptedPassphrase)
+      auth: .privateKey(contentsOf: encryptedPrivateKey, passphrase: encryptedPassphrase),
+      hostKey: .expecting(serverHostKey)
     ) { ssh in
       let proc = try await ssh.execute("whoami")
       let actual = try proc.stdout
@@ -179,7 +187,8 @@ struct SSHConnectTests {
 
   @Test func noPasswordThrowsAuthenticationFailed() async throws {
     await #expect {
-      try await SSHClient.connect(host: host, port: port, user: user)
+      try await SSHClient.connect(
+        host: host, port: port, user: user, hostKey: .expecting(serverHostKey))
     } throws: { error in
       if case .authenticationFailed? = error as? SSHError { true } else { false }
     }
@@ -187,7 +196,9 @@ struct SSHConnectTests {
 
   @Test func badPasswordThrowsAuthenticationFailed() async throws {
     await #expect {
-      try await SSHClient.connect(host: host, port: port, user: user, auth: .password("bad"))
+      try await SSHClient.connect(
+        host: host, port: port, user: user, auth: .password("bad"),
+        hostKey: .expecting(serverHostKey))
     } throws: { error in
       if case .authenticationFailed? = error as? SSHError { true } else { false }
     }
@@ -197,7 +208,8 @@ struct SSHConnectTests {
     await #expect {
       try await SSHClient.connect(
         host: host, port: port, user: user,
-        auth: .privateKey(contentsOf: URL(filePath: "/tmp/missing_pk")))
+        auth: .privateKey(contentsOf: URL(filePath: "/tmp/missing_pk")),
+        hostKey: .expecting(serverHostKey))
     } throws: { error in
       (error as? SSHError)?.privateKeyFailure == .unreadable
     }
@@ -206,7 +218,8 @@ struct SSHConnectTests {
   @Test func invalidPrivateKeyThrowsInvalid() async throws {
     await #expect {
       try await SSHClient.connect(
-        host: host, port: port, user: user, auth: .privateKey(contentsOf: publicKey))
+        host: host, port: port, user: user, auth: .privateKey(contentsOf: publicKey),
+        hostKey: .expecting(serverHostKey))
     } throws: { error in
       (error as? SSHError)?.privateKeyFailure == .invalid
     }
@@ -215,7 +228,8 @@ struct SSHConnectTests {
   @Test func invalidKeyContentsThrowsInvalid() async throws {
     await #expect {
       try await SSHClient.connect(
-        host: host, port: port, user: user, auth: .privateKey(contents: ""))
+        host: host, port: port, user: user, auth: .privateKey(contents: ""),
+        hostKey: .expecting(serverHostKey))
     } throws: { error in
       (error as? SSHError)?.privateKeyFailure == .invalid
     }
@@ -225,7 +239,8 @@ struct SSHConnectTests {
     await #expect {
       try await SSHClient.connect(
         host: host, port: port, user: user,
-        auth: .privateKey(contentsOf: encryptedPrivateKey))
+        auth: .privateKey(contentsOf: encryptedPrivateKey),
+        hostKey: .expecting(serverHostKey))
     } throws: { error in
       (error as? SSHError)?.privateKeyFailure == .passphraseRequired
     }
@@ -234,8 +249,7 @@ struct SSHConnectTests {
   @Test func hostKeyIsServerHostKey() async throws {
     let expected = try serverHostKey
     try await withAuthenticatedClient { ssh in
-      let actual = try await ssh.hostKey
-      #expect(actual == expected)
+      #expect(ssh.hostKey == expected)
     }
   }
 
@@ -268,7 +282,7 @@ struct SSHConnectTests {
     let listener = try IPv4LoopbackListener()
     let port = listener.port
     let connecting = Task {
-      try await SSHClient.hostKey(host: "localhost", port: port, timeout: 10)
+      try await SSHClient.hostKey(host: "localhost", port: port, timeout: .seconds(10))
     }
     let connected = await listener.receivesConnection(within: .seconds(10))
     _ = await connecting.result
@@ -279,7 +293,7 @@ struct SSHConnectTests {
   @Test func matchingExpectedHostKeySucceeds() async throws {
     try await SSHClient.withAuthenticatedClient(
       host: host, port: port, user: user, auth: .privateKey(contentsOf: privateKey),
-      expectedHostKey: serverHostKey
+      hostKey: .expecting(serverHostKey)
     ) { ssh in
       let proc = try await ssh.execute("true")
       #expect(proc.status == .exited(code: 0))
@@ -294,7 +308,7 @@ struct SSHConnectTests {
     await #expect {
       try await SSHClient.connect(
         host: host, port: port, user: user, auth: .password("wrong"),
-        expectedHostKey: expected
+        hostKey: .expecting(expected)
       )
     } throws: { error in
       guard case .hostKeyMismatch(expected, actual, let message)? = error as? SSHError else {
@@ -305,9 +319,47 @@ struct SSHConnectTests {
     }
   }
 
+  @Test func hostKeyValidatorReceivesServerHostKey() async throws {
+    let received = Mutex<SSHHostKey?>(nil)
+    try await SSHClient.withAuthenticatedClient(
+      host: host, port: port, user: user, auth: .privateKey(contentsOf: privateKey),
+      hostKey: SSHHostKeyValidator { key in received.withLock { $0 = key } }
+    ) { _ in }
+    let expected = try serverHostKey
+    #expect(received.withLock { $0 } == expected)
+  }
+
+  @Test func hostKeyValidatorErrorIsThrownBeforeAuthenticating() async throws {
+    struct Untrusted: Error {}
+    await #expect(throws: Untrusted.self) {
+      try await SSHClient.connect(
+        host: host, port: port, user: user, auth: .password("wrong"),
+        hostKey: SSHHostKeyValidator { _ in throw Untrusted() })
+    }
+  }
+
+  @Test func acceptingAnyHostKeyConnects() async throws {
+    let hostKey = try await SSHClient.withAuthenticatedClient(
+      host: host, port: port, user: user, auth: .privateKey(contentsOf: privateKey),
+      hostKey: .acceptingAny
+    ) { ssh in ssh.hostKey }
+    #expect(hostKey == (try serverHostKey))
+  }
+
+  @Test(arguments: [
+    (Duration.seconds(5), UInt64(5)),
+    (.milliseconds(1500), 2),
+    (.nanoseconds(1), 1),
+    (.zero, 0),
+    (.seconds(-3), 0),
+  ])
+  func timeoutRoundsUpToWholeSeconds(_ timeout: Duration, _ seconds: UInt64) {
+    #expect(timeout.secondsRoundedUp == seconds)
+  }
+
   @Test func invalidHostThrowsConnectionFailed() async throws {
     await #expect {
-      try await SSHClient.connect(host: "invalid", user: user)
+      try await SSHClient.connect(host: "invalid", user: user, hostKey: .acceptingAny)
     } throws: { error in
       (error as? SSHError)?.connectionFailure == .unknownHost
     }
@@ -315,7 +367,7 @@ struct SSHConnectTests {
 
   @Test func invalidPortThrowsConnectionFailed() async throws {
     await #expect {
-      try await SSHClient.connect(host: host, port: 2200, user: user)
+      try await SSHClient.connect(host: host, port: 2200, user: user, hostKey: .acceptingAny)
     } throws: { error in
       (error as? SSHError)?.connectionFailure == .refused
     }
@@ -323,7 +375,8 @@ struct SSHConnectTests {
 
   @Test func timeoutThrowsConnectionFailed() async throws {
     await #expect {
-      try await SSHClient.connect(host: "192.0.2.1", timeout: 1, user: user)
+      try await SSHClient.connect(
+        host: "192.0.2.1", user: user, hostKey: .acceptingAny, timeout: .seconds(1))
     } throws: { error in
       (error as? SSHError)?.connectionFailure == .timedOut
     }

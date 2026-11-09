@@ -27,21 +27,19 @@ public struct SSHClient: Sendable {
   }
 
   private let session: Session
+  public let hostKey: SSHHostKey
 
-  private init(host: String, port: UInt16, timeout: UInt) async throws(SSHError) {
-    session = try await bridge {
-      try await RusshFFI.connect(host: host, port: port, timeoutSecs: UInt64(timeout))
+  private init(host: String, port: UInt16, timeout: Duration) async throws(SSHError) {
+    let session = try await bridge {
+      try await RusshFFI.connect(host: host, port: port, timeoutSecs: timeout.secondsRoundedUp)
     }
-  }
-
-  private func verifyHostKey(_ expected: SSHHostKey) async throws {
-    let actual = try await hostKey
-    guard actual == expected else {
-      throw SSHError.hostKeyMismatch(
-        expected: expected, actual: actual,
-        message: "Server host key \(actual.fingerprint) does not match \(expected.fingerprint)"
-      )
+    do {
+      hostKey = SSHHostKey(try bridge { try session.hostKey() })
+    } catch {
+      await session.close()
+      throw error
     }
+    self.session = session
   }
 
   private func authenticate(user: String, auth: SSHAuthMethod) async throws(SSHError) {
@@ -58,14 +56,12 @@ public struct SSHClient: Sendable {
   }
 
   public static func connect(
-    host: String, port: UInt16 = 22, timeout: UInt = 60,
-    user: String, auth: SSHAuthMethod = .none, expectedHostKey: SSHHostKey? = nil
+    host: String, port: UInt16 = 22, user: String, auth: SSHAuthMethod = .none,
+    hostKey validateHostKey: SSHHostKeyValidator, timeout: Duration = .seconds(60)
   ) async throws -> SSHClient {
     let client = try await SSHClient(host: host, port: port, timeout: timeout)
     do {
-      if let expectedHostKey {
-        try await client.verifyHostKey(expectedHostKey)
-      }
+      try await validateHostKey(client.hostKey)
       try await client.authenticate(user: user, auth: auth)
       return client
     } catch {
@@ -75,28 +71,22 @@ public struct SSHClient: Sendable {
   }
 
   public static func hostKey(
-    host: String, port: UInt16 = 22, timeout: UInt = 60
+    host: String, port: UInt16 = 22, timeout: Duration = .seconds(60)
   ) async throws -> SSHHostKey {
     let client = try await SSHClient(host: host, port: port, timeout: timeout)
-    do {
-      let hostKey = try await client.hostKey
-      await client.close()
-      return hostKey
-    } catch {
-      await client.close()
-      throw error
-    }
+    await client.close()
+    return client.hostKey
   }
 
   @discardableResult
   public static func withAuthenticatedClient<T: Sendable>(
-    host: String, port: UInt16 = 22, timeout: UInt = 60,
-    user: String, auth: SSHAuthMethod = .none, expectedHostKey: SSHHostKey? = nil,
+    host: String, port: UInt16 = 22, user: String, auth: SSHAuthMethod = .none,
+    hostKey validateHostKey: SSHHostKeyValidator, timeout: Duration = .seconds(60),
     perform body: @Sendable (SSHClient) async throws -> T
   ) async throws -> T {
     let client = try await connect(
-      host: host, port: port, timeout: timeout, user: user, auth: auth,
-      expectedHostKey: expectedHostKey
+      host: host, port: port, user: user, auth: auth, hostKey: validateHostKey,
+      timeout: timeout
     )
     do {
       let result = try await body(client)
@@ -105,12 +95,6 @@ public struct SSHClient: Sendable {
     } catch {
       await client.close()
       throw error
-    }
-  }
-
-  public var hostKey: SSHHostKey {
-    get async throws {
-      SSHHostKey(try bridge { try session.hostKey() })
     }
   }
 
@@ -172,5 +156,13 @@ public struct SSHClient: Sendable {
 
   private func openChannel() async throws(SSHError) -> SSHChannel {
     SSHChannel(try await bridge { try await session.openChannel() })
+  }
+}
+
+extension Duration {
+  var secondsRoundedUp: UInt64 {
+    let (seconds, attoseconds) = components
+    guard seconds >= 0 else { return 0 }
+    return UInt64(seconds) + (attoseconds > 0 ? 1 : 0)
   }
 }

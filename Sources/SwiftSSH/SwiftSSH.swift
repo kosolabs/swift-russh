@@ -20,8 +20,9 @@ struct SSHConfig: ParsableArguments {
 
   func connect() async throws -> SSHClient {
     try await SSHClient.connect(
-      host: host, port: port, timeout: timeout, user: loginName,
-      auth: .privateKey(contentsOf: URL(fileURLWithPath: identityFile))
+      host: host, port: port, user: loginName,
+      auth: .privateKey(contentsOf: URL(fileURLWithPath: identityFile)),
+      hostKey: .acceptingAny, timeout: .seconds(timeout)
     )
   }
 
