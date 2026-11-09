@@ -1,20 +1,6 @@
 import Foundation
 import RusshFFI
 
-public enum AccessType: Sendable {
-  case readOnly
-  case writeOnly
-  case readWrite
-
-  var mode: AccessMode {
-    switch self {
-    case .readOnly: .readOnly
-    case .writeOnly: .writeOnly
-    case .readWrite: .readWrite
-    }
-  }
-}
-
 public enum StreamType: Int32, Sendable {
   case stdout = 0
   case stderr = 1
@@ -107,7 +93,8 @@ extension SSHError {
     case .AuthenticationFailed(let message):
       self = .authenticationFailed(message: message)
     case .Key(let kind, let message):
-      self = .privateKey(kind == .passphraseRequired ? .passphraseRequired : .invalid, message: message)
+      self = .privateKey(
+        kind == .passphraseRequired ? .passphraseRequired : .invalid, message: message)
     case .Sftp(let code, let message):
       self = .sftp(SFTPStatus(code: code), message: message)
     case .ChannelOpenFailed(let message):

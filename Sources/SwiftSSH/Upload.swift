@@ -27,7 +27,9 @@ struct Upload: AsyncParsableCommand {
       let speedometer = Speedometer(total: try fp.seekToEnd())
       try fp.seek(toOffset: 0)
 
-      try await sftp.withSftpFile(at: dst, accessType: .writeOnly, mode: mode) { file in
+      try await sftp.withFile(
+        at: dst, access: .writeOnly, options: [.create, .truncate], permissions: mode
+      ) { file in
         try await file.upload(from: URL(filePath: src), bufferSize: bufferSize) { completed in
           if let progress = speedometer.update(completed: Int(completed)) {
             print("Uploading from \(src) to \(dst): \(progress)")

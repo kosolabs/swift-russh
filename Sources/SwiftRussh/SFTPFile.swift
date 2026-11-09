@@ -26,7 +26,7 @@ public class SFTPReader: AsyncSequence {
     private let length: UInt64
     private let bufferSize: UInt64
 
-    private var count: UInt64 = 0
+    private var requested: UInt64 = 0
     private var queue: [SFTPAioReadContext] = []
 
     init(file: SFTPFile, offset: UInt64, length: UInt64, bufferSize: UInt64) {
@@ -39,19 +39,10 @@ public class SFTPReader: AsyncSequence {
     public func next() async throws -> Data? {
       try Task.checkCancellation()
 
-      if count == 0 {
-        try await file.seek(offset: offset)
-      }
-
-      while queue.count < Iterator.QueueSize && count < length {
-        let size = Swift.min(bufferSize, length - count)
-        guard let aio = try await file.beginRead(length: Int(size)) else {
-          if !queue.isEmpty { break }
-          await Task.yield()
-          continue
-        }
-        count += size
-        queue.append(aio)
+      while queue.count < Iterator.QueueSize && requested < length {
+        let size = Swift.min(bufferSize, length - requested)
+        queue.append(try file.beginRead(at: offset + requested, length: Int(size)))
+        requested += size
       }
 
       if queue.isEmpty {
@@ -68,25 +59,21 @@ public class SFTPWriter {
   static let QueueSize: Int = 16
 
   private let file: SFTPFile
+  private var offset: UInt64 = 0
   private var queue: [SFTPAioWriteContext] = []
 
   init(file: SFTPFile) {
     self.file = file
   }
 
-  public func write(data: Data) async throws {
+  public func write(contentsOf data: Data) async throws {
     var remaining = data[...]
     while !remaining.isEmpty {
-      guard queue.count < Self.QueueSize,
-        let aio = try await file.beginWrite(data: remaining)
-      else {
-        if queue.isEmpty {
-          await Task.yield()
-        } else {
-          try await queue.removeFirst().flush()
-        }
-        continue
+      if queue.count == Self.QueueSize {
+        try await queue.removeFirst().flush()
       }
+      let aio = try file.beginWrite(at: offset, data: remaining)
+      offset += UInt64(aio.length)
       remaining = remaining.dropFirst(aio.length)
       queue.append(aio)
     }
@@ -100,6 +87,22 @@ public class SFTPWriter {
 }
 
 public struct SFTPFile: Sendable {
+  public enum AccessMode: Sendable {
+    case readOnly
+    case writeOnly
+    case readWrite
+  }
+
+  public struct OpenOptions: OptionSet, Sendable {
+    public let rawValue: UInt8
+    public init(rawValue: UInt8) { self.rawValue = rawValue }
+
+    public static let create = OpenOptions(rawValue: 1 << 0)
+    public static let truncate = OpenOptions(rawValue: 1 << 1)
+    public static let append = OpenOptions(rawValue: 1 << 2)
+    public static let exclusiveCreate = OpenOptions(rawValue: 1 << 3)
+  }
+
   private let file: File
   private let limits: SFTPLimits
 
@@ -116,30 +119,18 @@ public struct SFTPFile: Sendable {
     SFTPAttributes(try await bridge { try await file.stat() })
   }
 
-  func seek(offset: UInt64) async throws(SSHError) {
-    try bridge { try file.seek(offset: offset) }
-  }
-
   public func read(
-    range: Range<UInt64>,
+    _ range: some RangeExpression<UInt64> = 0...,
     bufferSize: UInt64 = SFTPLimits.defaultBufferSize
   ) async throws -> Data {
-    try await read(
-      offset: range.lowerBound, length: range.upperBound - range.lowerBound,
-      bufferSize: bufferSize
-    )
-  }
-
-  public func read(
-    offset: UInt64 = 0, length: UInt64 = UInt64.max,
-    bufferSize: UInt64 = SFTPLimits.defaultBufferSize
-  ) async throws -> Data {
+    let range = range.relative(to: 0..<UInt64.max)
+    let length = range.upperBound - range.lowerBound
     let bufferSize = limits.readLength(for: bufferSize)
-    try await seek(offset: offset)
     var result = Data()
-    while result.count < length {
+    while UInt64(result.count) < length {
       let bytesToRead = UInt32(min(bufferSize, length - UInt64(result.count)))
-      let data = try await bridge { try await file.read(length: bytesToRead) }
+      let position = range.lowerBound + UInt64(result.count)
+      let data = try await bridge { try await file.read(offset: position, length: bytesToRead) }
       guard !data.isEmpty else { break }
       result.append(data)
     }
@@ -147,48 +138,28 @@ public struct SFTPFile: Sendable {
   }
 
   public func write(
-    data: Data, bufferSize: UInt64 = SFTPLimits.defaultBufferSize
+    contentsOf data: Data, at offset: UInt64,
+    bufferSize: UInt64 = SFTPLimits.defaultBufferSize
   ) async throws {
     let bufferSize = Int(limits.writeLength(for: bufferSize))
-    for curr in stride(from: 0, to: data.count, by: bufferSize) {
-      let next = min(data.count, curr + bufferSize)
-      let buffer = data.subdata(in: curr..<next)
-      let bytesWritten = try await bridge { try await file.write(data: buffer) }
-      if Int(bytesWritten) != buffer.count {
-        throw SSHError.invalidState(
-          message:
-            "Failed to write all data to file: \(bytesWritten) of \(buffer.count) bytes written")
-      }
+    var written = 0
+    while written < data.count {
+      let chunk = Data(data.dropFirst(written).prefix(bufferSize))
+      let position = offset + UInt64(written)
+      try await bridge { try await file.write(offset: position, data: chunk) }
+      written += chunk.count
     }
   }
 
-  func beginRead(length: Int) async throws(SSHError) -> SFTPAioReadContext? {
-    SFTPAioReadContext(try bridge { try file.beginRead(length: UInt32(length)) })
-  }
-
   public func stream(
-    range: Range<UInt64>,
+    _ range: some RangeExpression<UInt64> = 0...,
     bufferSize: UInt64 = SFTPLimits.defaultBufferSize
   ) -> SFTPReader {
+    let range = range.relative(to: 0..<UInt64.max)
     let bufferSize = limits.readLength(for: bufferSize)
     return SFTPReader(
-      file: self,
-      offset: range.lowerBound, length: range.upperBound - range.lowerBound,
-      bufferSize: bufferSize
-    )
-  }
-
-  public func stream(
-    offset: UInt64 = 0, length: UInt64 = UInt64.max,
-    bufferSize: UInt64 = SFTPLimits.defaultBufferSize
-  ) -> SFTPReader {
-    let bufferSize = limits.readLength(for: bufferSize)
-    return SFTPReader(file: self, offset: offset, length: length, bufferSize: bufferSize)
-  }
-
-  func beginWrite(data: Data) async throws(SSHError) -> SFTPAioWriteContext? {
-    let chunk = data.prefix(Int(limits.writeLength(for: UInt64(data.count))))
-    return SFTPAioWriteContext(try bridge { try file.beginWrite(data: Data(chunk)) })
+      file: self, offset: range.lowerBound, length: range.upperBound - range.lowerBound,
+      bufferSize: bufferSize)
   }
 
   public func withAsyncWriter(
@@ -228,10 +199,33 @@ public struct SFTPFile: Sendable {
     try await withAsyncWriter { writer in
       while let data = try fp.read(upToCount: bufferSize) {
         try Task.checkCancellation()
-        try await writer.write(data: data)
+        try await writer.write(contentsOf: data)
         count += UInt64(data.count)
         progress?(count)
       }
     }
+  }
+
+  func beginRead(at offset: UInt64, length: Int) throws(SSHError) -> SFTPAioReadContext {
+    SFTPAioReadContext(try bridge { try file.beginRead(offset: offset, length: UInt32(length)) })
+  }
+
+  func beginWrite(at offset: UInt64, data: Data) throws(SSHError) -> SFTPAioWriteContext {
+    let chunk = data.prefix(Int(limits.writeLength(for: UInt64(data.count))))
+    return SFTPAioWriteContext(
+      try bridge { try file.beginWrite(offset: offset, data: Data(chunk)) })
+  }
+}
+
+extension SFTPFile.AccessMode {
+  func openMode(_ options: SFTPFile.OpenOptions) -> OpenMode {
+    OpenMode(
+      read: self != .writeOnly,
+      write: self != .readOnly,
+      append: options.contains(.append),
+      create: options.contains(.create),
+      truncate: options.contains(.truncate),
+      exclusive: options.contains(.exclusiveCreate)
+    )
   }
 }

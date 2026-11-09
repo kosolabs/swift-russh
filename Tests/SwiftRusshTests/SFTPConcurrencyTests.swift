@@ -53,7 +53,7 @@ struct SFTPConcurrencyTests {
       }
 
       let actual = try await ssh.withSftp { sftp in
-        try await sftp.withSftpFile(at: "/tmp/drain.dat", accessType: .readOnly) { file in
+        try await sftp.withFile(at: "/tmp/drain.dat", access: .readOnly) { file in
           for try await chunk in file.stream() {
             // Returning here causes stream to cancel
             return chunk
@@ -90,8 +90,8 @@ struct SFTPConcurrencyTests {
           }
 
           group.addTask {
-            try? await sftp.withSftpFile(at: remoteSource, accessType: .readOnly) { file in
-              for try await _ in file.stream(offset: 0, length: window, bufferSize: window) {}
+            try? await sftp.withFile(at: remoteSource, access: .readOnly) { file in
+              for try await _ in file.stream(..<window, bufferSize: window) {}
             }
           }
         }
@@ -129,7 +129,7 @@ struct SFTPConcurrencyTests {
           }
 
           group.addTask {
-            try? await sftp.withSftpFile(at: remoteSource, accessType: .readOnly) { file in
+            try? await sftp.withFile(at: remoteSource, access: .readOnly) { file in
               for try await _ in file.stream(bufferSize: window) {}
             }
           }

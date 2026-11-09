@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use russh_sftp::client::error::Error as SftpClientError;
 use russh_sftp::client::rawsession::Limits;
@@ -75,22 +75,29 @@ pub struct AttributeChanges {
     pub modify_time: Option<u32>,
 }
 
-#[derive(Debug, Clone, Copy, uniffi::Enum)]
-pub enum AccessMode {
-    ReadOnly,
-    WriteOnly,
-    ReadWrite,
+#[derive(Debug, Clone, Copy, uniffi::Record)]
+pub struct OpenMode {
+    pub read: bool,
+    pub write: bool,
+    pub append: bool,
+    pub create: bool,
+    pub truncate: bool,
+    pub exclusive: bool,
 }
 
-impl AccessMode {
+impl OpenMode {
     fn flags(self) -> OpenFlags {
-        match self {
-            Self::ReadOnly => OpenFlags::READ,
-            Self::WriteOnly => OpenFlags::WRITE | OpenFlags::CREATE | OpenFlags::TRUNCATE,
-            Self::ReadWrite => {
-                OpenFlags::READ | OpenFlags::WRITE | OpenFlags::CREATE | OpenFlags::TRUNCATE
-            }
-        }
+        [
+            (self.read, OpenFlags::READ),
+            (self.write, OpenFlags::WRITE),
+            (self.append, OpenFlags::APPEND),
+            (self.create, OpenFlags::CREATE),
+            (self.truncate, OpenFlags::TRUNCATE),
+            (self.exclusive, OpenFlags::EXCLUDE),
+        ]
+        .into_iter()
+        .filter(|(enabled, _)| *enabled)
+        .fold(OpenFlags::empty(), |flags, (_, flag)| flags | flag)
     }
 }
 
@@ -370,20 +377,21 @@ impl Sftp {
         run(async move { inner.symlink(target, dest).await }).await
     }
 
-    pub async fn open(&self, path: String, access: AccessMode, mode: u32) -> Result<Arc<File>> {
+    pub async fn open(&self, path: String, mode: OpenMode, permissions: u32) -> Result<Arc<File>> {
         let inner = self.inner.clone();
         run(async move {
             inner.check_open()?;
             let mut attrs = FileAttributes::empty();
-            attrs.permissions = Some(mode);
-            let handle = inner.call(inner.raw.open(path, access.flags(), attrs)).await?.handle;
+            attrs.permissions = Some(permissions);
+            let handle = match inner.call(inner.raw.open(path.clone(), mode.flags(), attrs)).await {
+                Ok(handle) => handle.handle,
+                Err(error) if mode.exclusive => {
+                    return Err(inner.already_exists_if_present(error.into(), path).await);
+                }
+                Err(error) => return Err(error.into()),
+            };
             Ok(Arc::new(File {
-                inner: Arc::new(FileInner {
-                    sftp: inner,
-                    handle,
-                    closed: AtomicBool::new(false),
-                    position: Mutex::new(0),
-                }),
+                inner: Arc::new(FileInner { sftp: inner, handle, closed: AtomicBool::new(false) }),
             }))
         })
         .await
@@ -413,7 +421,6 @@ struct FileInner {
     sftp: Arc<SftpInner>,
     handle: String,
     closed: AtomicBool,
-    position: Mutex<u64>,
 }
 
 impl FileInner {
@@ -423,13 +430,6 @@ impl FileInner {
             return Err(RusshError::closed("SFTP file is closed"));
         }
         Ok(())
-    }
-
-    fn reserve(&self, length: u64) -> u64 {
-        let mut position = self.position.lock().unwrap();
-        let offset = *position;
-        *position += length;
-        offset
     }
 
     async fn read_at(&self, offset: u64, length: u32) -> Result<Vec<u8>> {
@@ -478,38 +478,19 @@ impl File {
         .await
     }
 
-    pub fn seek(&self, offset: u64) -> Result<()> {
-        self.inner.check_open()?;
-        *self.inner.position.lock().unwrap() = offset;
-        Ok(())
-    }
-
-    pub async fn read(&self, length: u32) -> Result<Vec<u8>> {
+    pub async fn read(&self, offset: u64, length: u32) -> Result<Vec<u8>> {
         let inner = self.inner.clone();
-        run(async move {
-            let offset = *inner.position.lock().unwrap();
-            let data = inner.read_at(offset, length).await?;
-            *inner.position.lock().unwrap() = offset + data.len() as u64;
-            Ok(data)
-        })
-        .await
+        run(async move { inner.read_at(offset, length).await }).await
     }
 
-    pub async fn write(&self, data: Vec<u8>) -> Result<u64> {
+    pub async fn write(&self, offset: u64, data: Vec<u8>) -> Result<()> {
         let inner = self.inner.clone();
-        run(async move {
-            let length = data.len() as u64;
-            let offset = inner.reserve(length);
-            inner.write_at(offset, data).await?;
-            Ok(length)
-        })
-        .await
+        run(async move { inner.write_at(offset, data).await }).await
     }
 
-    pub fn begin_read(&self, length: u32) -> Result<Arc<PendingRead>> {
+    pub fn begin_read(&self, offset: u64, length: u32) -> Result<Arc<PendingRead>> {
         self.inner.check_open()?;
         let inner = self.inner.clone();
-        let offset = inner.reserve(length as u64);
         let (sender, receiver) = oneshot::channel();
         spawn(async move {
             let _ = sender.send(inner.read_at(offset, length).await);
@@ -517,11 +498,10 @@ impl File {
         Ok(Arc::new(PendingRead { receiver: tokio::sync::Mutex::new(Some(receiver)) }))
     }
 
-    pub fn begin_write(&self, data: Vec<u8>) -> Result<Arc<PendingWrite>> {
+    pub fn begin_write(&self, offset: u64, data: Vec<u8>) -> Result<Arc<PendingWrite>> {
         self.inner.check_open()?;
         let inner = self.inner.clone();
         let length = data.len() as u64;
-        let offset = inner.reserve(length);
         let (sender, receiver) = oneshot::channel();
         spawn(async move {
             let _ = sender.send(inner.write_at(offset, data).await);

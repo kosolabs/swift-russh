@@ -14,19 +14,19 @@ public struct SFTPClient: Sendable {
     await sftp.close()
   }
 
-  public func createDirectory(at path: String, mode: mode_t = 0o777) async throws {
-    try await bridge { try await sftp.mkdir(path: path, mode: UInt32(mode)) }
+  public func createDirectory(at path: String, permissions: mode_t = 0o777) async throws {
+    try await bridge { try await sftp.mkdir(path: path, mode: UInt32(permissions)) }
   }
 
   public func createDirectoryRecursively(
-    at path: String, mode: mode_t = 0o777
+    at path: String, permissions: mode_t = 0o777
   ) async throws {
     let isAbsolute = path.hasPrefix("/")
     let components = path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
     for i in components.indices {
       let partial = (isAbsolute ? "/" : "") + components[0...i].joined(separator: "/")
       do {
-        try await createDirectory(at: partial, mode: mode)
+        try await createDirectory(at: partial, permissions: permissions)
       } catch SSHError.sftp(.fileAlreadyExists, _) {
         continue
       }
@@ -69,7 +69,8 @@ public struct SFTPClient: Sendable {
   public func attributes(
     at path: String, followSymlinks: Bool = true
   ) async throws -> SFTPAttributes {
-    SFTPAttributes(try await bridge { try await sftp.stat(path: path, followSymlinks: followSymlinks) })
+    SFTPAttributes(
+      try await bridge { try await sftp.stat(path: path, followSymlinks: followSymlinks) })
   }
 
   public func setAttributes(
@@ -111,12 +112,14 @@ public struct SFTPClient: Sendable {
     try await bridge { try await sftp.symlink(target: target, dest: dest) }
   }
 
-  public func withSftpFile<T: Sendable>(
-    at path: String, accessType: AccessType, mode: mode_t = 0o666,
+  public func withFile<T: Sendable>(
+    at path: String, access: SFTPFile.AccessMode, options: SFTPFile.OpenOptions = [],
+    permissions: mode_t = 0o666,
     perform: @Sendable (SFTPFile) async throws -> T
   ) async throws -> T {
     let file = try await bridge {
-      try await sftp.open(path: path, access: accessType.mode, mode: UInt32(mode))
+      try await sftp.open(
+        path: path, mode: access.openMode(options), permissions: UInt32(permissions))
     }
     do {
       let result = try await perform(SFTPFile(file, limits: limits))
@@ -133,17 +136,19 @@ public struct SFTPClient: Sendable {
     bufferSize: UInt64 = SFTPLimits.defaultBufferSize,
     progress: (@Sendable (UInt64) -> Void)? = nil
   ) async throws {
-    try await withSftpFile(at: remotePath, accessType: .readOnly) { file in
+    try await withFile(at: remotePath, access: .readOnly) { file in
       try await file.download(to: localURL, bufferSize: bufferSize, progress: progress)
     }
   }
 
   public func upload(
-    from localURL: URL, to remotePath: String, mode: mode_t = 0o666,
+    from localURL: URL, to remotePath: String, permissions: mode_t = 0o666,
     bufferSize: UInt64 = SFTPLimits.defaultBufferSize,
     progress: (@Sendable (UInt64) -> Void)? = nil
   ) async throws {
-    try await withSftpFile(at: remotePath, accessType: .writeOnly, mode: mode) { file in
+    try await withFile(
+      at: remotePath, access: .writeOnly, options: [.create, .truncate], permissions: permissions
+    ) { file in
       try await file.upload(from: localURL, bufferSize: bufferSize, progress: progress)
     }
   }

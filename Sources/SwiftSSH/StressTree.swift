@@ -145,7 +145,7 @@ struct StressTree: AsyncParsableCommand {
     // A control connection owned by nobody in particular: it creates the remote
     // scratch directory and cleans up at the end.
     let (control, controlSftp) = try await sshConfig.connectWithSftp()
-    try await controlSftp.createDirectoryRecursively(at: remoteDir, mode: 0o755)
+    try await controlSftp.createDirectoryRecursively(at: remoteDir, permissions: 0o755)
 
     do {
       try await withThrowingTaskGroup(of: Void.self) { group in
@@ -193,7 +193,7 @@ struct StressTree: AsyncParsableCommand {
   ) async throws {
     try await shared.withWorkerContext { _, sftp in
       let workerRoot = "\(remoteDir)/w\(worker)"
-      try await sftp.createDirectoryRecursively(at: workerRoot, mode: 0o755)
+      try await sftp.createDirectoryRecursively(at: workerRoot, permissions: 0o755)
 
       for round in 0..<rounds {
         try Task.checkCancellation()
@@ -243,7 +243,7 @@ struct StressTree: AsyncParsableCommand {
     sftp: SFTPClient, generator: inout SplitMix64, stats: TreeCounters
   ) async throws {
     try Task.checkCancellation()
-    try await sftp.createDirectory(at: path, mode: 0o755)
+    try await sftp.createDirectory(at: path, permissions: 0o755)
     stats.update { $0.directories += 1 }
 
     var plans: [FilePlan] = []
@@ -301,7 +301,7 @@ struct StressTree: AsyncParsableCommand {
       let filePath = "\(path)/\(plan.finalName)"
       let contents: Data
       do {
-        contents = try await sftp.withSftpFile(at: filePath, accessType: .readOnly) { file in
+        contents = try await sftp.withFile(at: filePath, access: .readOnly) { file in
           try await file.read()
         }
       } catch {
@@ -332,8 +332,10 @@ struct StressTree: AsyncParsableCommand {
     let payload = payloadData(size: plan.size, seed: plan.seed)
     let path = "\(directory)/\(plan.name)"
 
-    try await sftp.withSftpFile(at: path, accessType: .writeOnly, mode: 0o644) { file in
-      try await file.write(data: payload)
+    try await sftp.withFile(
+      at: path, access: .writeOnly, options: [.create, .truncate], permissions: 0o644
+    ) { file in
+      try await file.write(contentsOf: payload, at: 0)
     }
     stats.update {
       $0.files += 1

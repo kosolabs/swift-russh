@@ -935,19 +935,17 @@ public func FfiConverterTypeExecChannel_lower(_ value: ExecChannel) -> UInt64 {
 
 public protocol FileProtocol: AnyObject, Sendable {
     
-    func beginRead(length: UInt32) throws  -> PendingRead
+    func beginRead(offset: UInt64, length: UInt32) throws  -> PendingRead
     
-    func beginWrite(data: Data) throws  -> PendingWrite
+    func beginWrite(offset: UInt64, data: Data) throws  -> PendingWrite
     
     func close() async 
     
-    func read(length: UInt32) async throws  -> Data
-    
-    func seek(offset: UInt64) throws 
+    func read(offset: UInt64, length: UInt32) async throws  -> Data
     
     func stat() async throws  -> Attributes
     
-    func write(data: Data) async throws  -> UInt64
+    func write(offset: UInt64, data: Data) async throws 
     
 }
 open class File: FileProtocol, @unchecked Sendable {
@@ -1003,21 +1001,23 @@ open class File: FileProtocol, @unchecked Sendable {
     
 
     
-open func beginRead(length: UInt32)throws  -> PendingRead  {
+open func beginRead(offset: UInt64, length: UInt32)throws  -> PendingRead  {
     return try  FfiConverterTypePendingRead_lift(try rustCallWithError(FfiConverterTypeRusshError_lift) {
         uniffiCallStatus in
     uniffi_russh_ffi_fn_method_file_begin_read(
             self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(offset),
         FfiConverterUInt32.lower(length),uniffiCallStatus
     )
 })
 }
     
-open func beginWrite(data: Data)throws  -> PendingWrite  {
+open func beginWrite(offset: UInt64, data: Data)throws  -> PendingWrite  {
     return try  FfiConverterTypePendingWrite_lift(try rustCallWithError(FfiConverterTypeRusshError_lift) {
         uniffiCallStatus in
     uniffi_russh_ffi_fn_method_file_begin_write(
             self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(offset),
         FfiConverterData.lower(data),uniffiCallStatus
     )
 })
@@ -1040,12 +1040,12 @@ open func close()async   {
         )
 }
     
-open func read(length: UInt32)async throws  -> Data  {
+open func read(offset: UInt64, length: UInt32)async throws  -> Data  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_russh_ffi_fn_method_file_read(
-                        self.uniffiCloneHandle(),FfiConverterUInt32.lower(length)
+                        self.uniffiCloneHandle(),FfiConverterUInt64.lower(offset),FfiConverterUInt32.lower(length)
                 )
             },
             pollFunc: ffi_russh_ffi_rust_future_poll_rust_buffer,
@@ -1054,15 +1054,6 @@ open func read(length: UInt32)async throws  -> Data  {
             liftFunc: FfiConverterData.lift,
             errorHandler: FfiConverterTypeRusshError_lift
         )
-}
-    
-open func seek(offset: UInt64)throws   {try rustCallWithError(FfiConverterTypeRusshError_lift) {
-        uniffiCallStatus in
-    uniffi_russh_ffi_fn_method_file_seek(
-            self.uniffiCloneHandle(),
-        FfiConverterUInt64.lower(offset),uniffiCallStatus
-    )
-}
 }
     
 open func stat()async throws  -> Attributes  {
@@ -1081,18 +1072,18 @@ open func stat()async throws  -> Attributes  {
         )
 }
     
-open func write(data: Data)async throws  -> UInt64  {
+open func write(offset: UInt64, data: Data)async throws   {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_russh_ffi_fn_method_file_write(
-                        self.uniffiCloneHandle(),FfiConverterData.lower(data)
+                        self.uniffiCloneHandle(),FfiConverterUInt64.lower(offset),FfiConverterData.lower(data)
                 )
             },
-            pollFunc: ffi_russh_ffi_rust_future_poll_u64,
-            completeFunc: ffi_russh_ffi_rust_future_complete_u64,
-            freeFunc: ffi_russh_ffi_rust_future_free_u64,
-            liftFunc: FfiConverterUInt64.lift,
+            pollFunc: ffi_russh_ffi_rust_future_poll_void,
+            completeFunc: ffi_russh_ffi_rust_future_complete_void,
+            freeFunc: ffi_russh_ffi_rust_future_free_void,
+            liftFunc: { $0 },
             errorHandler: FfiConverterTypeRusshError_lift
         )
 }
@@ -1786,7 +1777,7 @@ public protocol SftpProtocol: AnyObject, Sendable {
     
     func mkdir(path: String, mode: UInt32) async throws 
     
-    func `open`(path: String, access: AccessMode, mode: UInt32) async throws  -> File
+    func `open`(path: String, mode: OpenMode, permissions: UInt32) async throws  -> File
     
     func openDir(path: String) async throws  -> Directory
     
@@ -1900,12 +1891,12 @@ open func mkdir(path: String, mode: UInt32)async throws   {
         )
 }
     
-open func `open`(path: String, access: AccessMode, mode: UInt32)async throws  -> File  {
+open func `open`(path: String, mode: OpenMode, permissions: UInt32)async throws  -> File  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_russh_ffi_fn_method_sftp_open(
-                        self.uniffiCloneHandle(),FfiConverterString.lower(path),FfiConverterTypeAccessMode_lower(access),FfiConverterUInt32.lower(mode)
+                        self.uniffiCloneHandle(),FfiConverterString.lower(path),FfiConverterTypeOpenMode_lower(mode),FfiConverterUInt32.lower(permissions)
                 )
             },
             pollFunc: ffi_russh_ffi_rust_future_poll_u64,
@@ -2352,6 +2343,76 @@ public func FfiConverterTypeHostKey_lower(_ value: HostKey) -> RustBuffer {
 }
 
 
+public struct OpenMode: Equatable, Hashable {
+    public var read: Bool
+    public var write: Bool
+    public var append: Bool
+    public var create: Bool
+    public var truncate: Bool
+    public var exclusive: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(read: Bool, write: Bool, append: Bool, create: Bool, truncate: Bool, exclusive: Bool) {
+        self.read = read
+        self.write = write
+        self.append = append
+        self.create = create
+        self.truncate = truncate
+        self.exclusive = exclusive
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension OpenMode: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeOpenMode: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OpenMode {
+        return
+            try OpenMode(
+                read: FfiConverterBool.read(from: &buf), 
+                write: FfiConverterBool.read(from: &buf), 
+                append: FfiConverterBool.read(from: &buf), 
+                create: FfiConverterBool.read(from: &buf), 
+                truncate: FfiConverterBool.read(from: &buf), 
+                exclusive: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: OpenMode, into buf: inout [UInt8]) {
+        FfiConverterBool.write(value.read, into: &buf)
+        FfiConverterBool.write(value.write, into: &buf)
+        FfiConverterBool.write(value.append, into: &buf)
+        FfiConverterBool.write(value.create, into: &buf)
+        FfiConverterBool.write(value.truncate, into: &buf)
+        FfiConverterBool.write(value.exclusive, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOpenMode_lift(_ buf: RustBuffer) throws -> OpenMode {
+    return try FfiConverterTypeOpenMode.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOpenMode_lower(_ value: OpenMode) -> RustBuffer {
+    return FfiConverterTypeOpenMode.lower(value)
+}
+
+
 public struct SftpLimits: Equatable, Hashable {
     public var maxOpenHandles: UInt64
     public var maxPacketLength: UInt64
@@ -2412,79 +2473,6 @@ public func FfiConverterTypeSftpLimits_lift(_ buf: RustBuffer) throws -> SftpLim
 public func FfiConverterTypeSftpLimits_lower(_ value: SftpLimits) -> RustBuffer {
     return FfiConverterTypeSftpLimits.lower(value)
 }
-
-
-
-public enum AccessMode: Equatable, Hashable {
-    
-    case readOnly
-    case writeOnly
-    case readWrite
-
-
-
-
-
-}
-
-#if compiler(>=6)
-extension AccessMode: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeAccessMode: FfiConverterRustBuffer {
-    typealias SwiftType = AccessMode
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AccessMode {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-        
-        case 1: return .readOnly
-        
-        case 2: return .writeOnly
-        
-        case 3: return .readWrite
-        
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: AccessMode, into buf: inout [UInt8]) {
-        switch value {
-        
-        
-        case .readOnly:
-            writeInt(&buf, Int32(1))
-        
-        
-        case .writeOnly:
-            writeInt(&buf, Int32(2))
-        
-        
-        case .readWrite:
-            writeInt(&buf, Int32(3))
-        
-        }
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeAccessMode_lift(_ buf: RustBuffer) throws -> AccessMode {
-    return try FfiConverterTypeAccessMode.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeAccessMode_lower(_ value: AccessMode) -> RustBuffer {
-    return FfiConverterTypeAccessMode.lower(value)
-}
-
 
 
 
@@ -3189,25 +3177,22 @@ private let initializationResult: InitializationResult = {
     if (uniffi_russh_ffi_checksum_method_directory_read() != 15203) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_russh_ffi_checksum_method_file_begin_read() != 3086) {
+    if (uniffi_russh_ffi_checksum_method_file_begin_read() != 24410) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_russh_ffi_checksum_method_file_begin_write() != 17276) {
+    if (uniffi_russh_ffi_checksum_method_file_begin_write() != 28875) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_russh_ffi_checksum_method_file_close() != 1619) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_russh_ffi_checksum_method_file_read() != 5651) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_russh_ffi_checksum_method_file_seek() != 37874) {
+    if (uniffi_russh_ffi_checksum_method_file_read() != 38454) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_russh_ffi_checksum_method_file_stat() != 43063) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_russh_ffi_checksum_method_file_write() != 42595) {
+    if (uniffi_russh_ffi_checksum_method_file_write() != 4249) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_russh_ffi_checksum_method_pendingread_wait() != 46613) {
@@ -3228,7 +3213,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_russh_ffi_checksum_method_sftp_mkdir() != 53063) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_russh_ffi_checksum_method_sftp_open() != 36866) {
+    if (uniffi_russh_ffi_checksum_method_sftp_open() != 45026) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_russh_ffi_checksum_method_sftp_open_dir() != 12236) {
