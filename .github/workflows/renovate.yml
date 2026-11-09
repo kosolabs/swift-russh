@@ -10,6 +10,8 @@ jobs:
   renovate:
     name: Renovate
     runs-on: macos-latest
+    permissions:
+      contents: read
     environment:
       name: swift-russh-renovate
     steps:
