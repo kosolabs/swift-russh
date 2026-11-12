@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -190,24 +191,38 @@ async fn connect_tcp(host: &str, port: u16, timeout_duration: Duration) -> Resul
             )
         })?;
 
-    let mut last_error = RusshError::connection_failed(
-        ConnectionFailureKind::UnknownHost,
-        format!("No addresses found for {host}"),
-    );
+    let mut failures = Vec::new();
     for address in addresses {
-        last_error = match timeout(timeout_duration, TcpStream::connect(address)).await {
+        let (kind, reason) = match timeout(timeout_duration, TcpStream::connect(address)).await {
             Ok(Ok(stream)) => return Ok(stream),
-            Ok(Err(error)) => RusshError::connection_failed(
-                ConnectionFailureKind::of(&error),
-                format!("Failed to connect to {address}: {error}"),
-            ),
-            Err(_) => RusshError::connection_failed(
-                ConnectionFailureKind::TimedOut,
-                format!("Timed out connecting to {address}"),
-            ),
+            Ok(Err(error)) => (ConnectionFailureKind::of(&error), error.to_string()),
+            Err(_) => (ConnectionFailureKind::TimedOut, "Timed out".to_owned()),
         };
+        failures.push(ConnectFailure { address, kind, reason });
     }
-    Err(last_error)
+    Err(connect_error(host, port, &failures))
+}
+
+struct ConnectFailure {
+    address: SocketAddr,
+    kind: ConnectionFailureKind,
+    reason: String,
+}
+
+fn connect_error(host: &str, port: u16, failures: &[ConnectFailure]) -> RusshError {
+    let Some(kind) = failures.iter().map(|failure| failure.kind).max_by_key(|kind| kind.progress())
+    else {
+        return RusshError::connection_failed(
+            ConnectionFailureKind::UnknownHost,
+            format!("No addresses found for {host}"),
+        );
+    };
+    let attempts: Vec<String> =
+        failures.iter().map(|failure| format!("{}: {}", failure.address, failure.reason)).collect();
+    RusshError::connection_failed(
+        kind,
+        format!("Failed to connect to {host}:{port}: {}", attempts.join("; ")),
+    )
 }
 
 #[uniffi::export]
@@ -246,5 +261,73 @@ impl Session {
         let inner = self.inner.clone();
         let key = key.key.clone();
         run(async move { inner.authenticate(Auth::PublicKey { user, key }).await }).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ConnectionFailureKind::*;
+
+    fn failures(kinds: &[ConnectionFailureKind]) -> Vec<ConnectFailure> {
+        kinds
+            .iter()
+            .enumerate()
+            .map(|(index, &kind)| ConnectFailure {
+                address: SocketAddr::from(([192, 168, 1, index as u8], 22)),
+                kind,
+                reason: format!("{kind:?}"),
+            })
+            .collect()
+    }
+
+    fn kind_and_message(error: RusshError) -> (ConnectionFailureKind, String) {
+        match error {
+            RusshError::ConnectionFailed { kind, message } => (kind, message),
+            other => panic!("Expected ConnectionFailed, got {other:?}"),
+        }
+    }
+
+    // A dual-stack host whose IPv6 route is broken must still report what its IPv4
+    // address said, whichever order the resolver returned them in.
+    #[test]
+    fn reports_the_address_that_got_furthest() {
+        let cases: [(&[ConnectionFailureKind], ConnectionFailureKind); 6] = [
+            (&[Unreachable, Refused], Refused),
+            (&[Refused, Unreachable], Refused),
+            (&[Unreachable, TimedOut], TimedOut),
+            (&[TimedOut, Refused], Refused),
+            (&[Unreachable, Other], Other),
+            (&[Unreachable, Unreachable], Unreachable),
+        ];
+        for (kinds, expected) in cases {
+            let (kind, _) = kind_and_message(connect_error("host", 22, &failures(kinds)));
+            assert_eq!(kind, expected, "{kinds:?}");
+        }
+    }
+
+    #[test]
+    fn message_names_every_address_tried() {
+        let failures = [
+            ConnectFailure {
+                address: "[fd00::1]:22".parse().unwrap(),
+                kind: Unreachable,
+                reason: "No route to host".into(),
+            },
+            ConnectFailure {
+                address: "192.168.1.2:22".parse().unwrap(),
+                kind: Unreachable,
+                reason: "No route to host".into(),
+            },
+        ];
+        let (_, message) = kind_and_message(connect_error("avocado.local", 22, &failures));
+        assert!(message.contains("[fd00::1]:22: No route to host"), "{message}");
+        assert!(message.contains("192.168.1.2:22: No route to host"), "{message}");
+    }
+
+    #[test]
+    fn no_addresses_is_an_unknown_host() {
+        let (kind, _) = kind_and_message(connect_error("host", 22, &[]));
+        assert_eq!(kind, UnknownHost);
     }
 }

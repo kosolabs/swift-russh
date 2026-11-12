@@ -15,6 +15,7 @@ public enum SSHError: Error, Sendable {
     case unknownHost
     case refused
     case timedOut
+    case unreachable
     case lost
     case other
   }
@@ -99,6 +100,7 @@ extension SSHError.ConnectionFailure {
     case .unknownHost: self = .unknownHost
     case .refused: self = .refused
     case .timedOut: self = .timedOut
+    case .unreachable: self = .unreachable
     case .lost: self = .lost
     case .other: self = .other
     }
