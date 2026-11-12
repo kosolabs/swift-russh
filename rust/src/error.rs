@@ -16,6 +16,7 @@ pub enum ConnectionFailureKind {
     UnknownHost,
     Refused,
     TimedOut,
+    Unreachable,
     Lost,
     Other,
 }
@@ -25,12 +26,28 @@ impl ConnectionFailureKind {
         match error.kind() {
             io::ErrorKind::ConnectionRefused => Self::Refused,
             io::ErrorKind::TimedOut => Self::TimedOut,
+            io::ErrorKind::HostUnreachable
+            | io::ErrorKind::NetworkUnreachable
+            | io::ErrorKind::NetworkDown
+            | io::ErrorKind::AddrNotAvailable => Self::Unreachable,
             io::ErrorKind::ConnectionReset
             | io::ErrorKind::ConnectionAborted
             | io::ErrorKind::BrokenPipe
             | io::ErrorKind::NotConnected
             | io::ErrorKind::UnexpectedEof => Self::Lost,
+            _ if error.raw_os_error() == Some(libc::EHOSTDOWN) => Self::Unreachable,
             _ => Self::Other,
+        }
+    }
+
+    /// How far a connection attempt got before failing, so that when a host has several
+    /// addresses, the failure that says most about the host can be reported.
+    pub(crate) fn progress(self) -> u8 {
+        match self {
+            Self::Unreachable => 0,
+            Self::UnknownHost | Self::Other => 1,
+            Self::TimedOut => 2,
+            Self::Refused | Self::Lost => 3,
         }
     }
 }
@@ -149,10 +166,25 @@ mod tests {
         use ConnectionFailureKind::*;
         assert_eq!(ConnectionFailureKind::of(&io_error(io::ErrorKind::ConnectionRefused)), Refused);
         assert_eq!(ConnectionFailureKind::of(&io_error(io::ErrorKind::TimedOut)), TimedOut);
+        assert_eq!(ConnectionFailureKind::of(&io_error(io::ErrorKind::HostUnreachable)), Unreachable);
+        assert_eq!(ConnectionFailureKind::of(&io_error(io::ErrorKind::NetworkUnreachable)), Unreachable);
+        assert_eq!(ConnectionFailureKind::of(&io_error(io::ErrorKind::NetworkDown)), Unreachable);
+        assert_eq!(ConnectionFailureKind::of(&io_error(io::ErrorKind::AddrNotAvailable)), Unreachable);
         assert_eq!(ConnectionFailureKind::of(&io_error(io::ErrorKind::ConnectionReset)), Lost);
         assert_eq!(ConnectionFailureKind::of(&io_error(io::ErrorKind::BrokenPipe)), Lost);
         assert_eq!(ConnectionFailureKind::of(&io_error(io::ErrorKind::UnexpectedEof)), Lost);
         assert_eq!(ConnectionFailureKind::of(&io_error(io::ErrorKind::PermissionDenied)), Other);
+    }
+
+    #[test]
+    fn os_errors_from_connect_are_classified() {
+        use ConnectionFailureKind::*;
+        let of = |code| ConnectionFailureKind::of(&io::Error::from_raw_os_error(code));
+        assert_eq!(of(libc::EHOSTUNREACH), Unreachable);
+        assert_eq!(of(libc::EHOSTDOWN), Unreachable);
+        assert_eq!(of(libc::ENETUNREACH), Unreachable);
+        assert_eq!(of(libc::ECONNREFUSED), Refused);
+        assert_eq!(of(libc::ETIMEDOUT), TimedOut);
     }
 
     #[test]

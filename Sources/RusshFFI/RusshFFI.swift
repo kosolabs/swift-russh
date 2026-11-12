@@ -2481,6 +2481,7 @@ public enum ConnectionFailureKind: Equatable, Hashable {
     case unknownHost
     case refused
     case timedOut
+    case unreachable
     case lost
     case other
 
@@ -2510,9 +2511,11 @@ public struct FfiConverterTypeConnectionFailureKind: FfiConverterRustBuffer {
         
         case 3: return .timedOut
         
-        case 4: return .lost
+        case 4: return .unreachable
         
-        case 5: return .other
+        case 5: return .lost
+        
+        case 6: return .other
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -2534,12 +2537,16 @@ public struct FfiConverterTypeConnectionFailureKind: FfiConverterRustBuffer {
             writeInt(&buf, Int32(3))
         
         
-        case .lost:
+        case .unreachable:
             writeInt(&buf, Int32(4))
         
         
-        case .other:
+        case .lost:
             writeInt(&buf, Int32(5))
+        
+        
+        case .other:
+            writeInt(&buf, Int32(6))
         
         }
     }
