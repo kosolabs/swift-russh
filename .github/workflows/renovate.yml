@@ -24,7 +24,7 @@ jobs:
           node-version: '26'
 
       - id: app
-        uses: actions/create-github-app-token@v3.3.0
+        uses: actions/create-github-app-token@v3.4.0
         with:
           client-id: Iv23liXmycC1xcoZVDSz
           private-key: ${{ secrets.RENOVATE_PRIVATE_KEY }}
